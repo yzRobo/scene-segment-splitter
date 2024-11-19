@@ -1,6 +1,17 @@
 
 # Video Processing Tool
 
+## Table of Contents 
+- [Features](#features) 
+- [Prerequisites](#prerequisites) 
+- - [Virtual Environment Setup](#setup) 
+- - [Setup FFmpeg on Windows](#setup-ffmpeg-on-windows) 
+- - [Setup FFmpeg on macOS](#setup-ffmpeg-on-macos) 
+- - [Setup FFmpeg on Linux](#setup-ffmpeg-on-linux) 
+- - [Usage](#usage) 
+- - [Customization](#customization) 
+- - [License](#license) 
+- - [Contributions](#contributions)
   
 
 ## Features

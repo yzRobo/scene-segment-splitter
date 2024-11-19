@@ -1,5 +1,5 @@
 
-# Video Processing Tool
+# Scene Segment Splitter
 
 ## Table of Contents 
 - [Features](#features) 
@@ -28,7 +28,7 @@
 
 ## Prerequisites
 
-1. Python 3.6 or later
+1. Python 3.10 or later
 
 2. FFmpeg installed and added to the system's `PATH` environment variable
 

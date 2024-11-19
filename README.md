@@ -1,5 +1,5 @@
 
-# Episode Segment Splitter
+# Scene Segment Splitter
 
   
 

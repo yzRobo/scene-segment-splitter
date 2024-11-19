@@ -4,7 +4,7 @@
 ## Table of Contents 
 - [Features](#features) 
 - [Prerequisites](#prerequisites) 
-- - [Virtual Environment Setup](#setup) 
+- - [Virtual Environment and Episode List Setup](#setup) 
 - - [Setup FFmpeg on Windows](#setup-ffmpeg-on-windows) 
 - - [Setup FFmpeg on macOS](#setup-ffmpeg-on-macos) 
 - - [Setup FFmpeg on Linux](#setup-ffmpeg-on-linux) 

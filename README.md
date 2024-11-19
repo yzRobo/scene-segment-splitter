@@ -1,5 +1,5 @@
 
-# Scene Segment Splitter
+# Video Processing Tool
 
   
 
@@ -163,12 +163,21 @@ sudo pacman -S ffmpeg
 1.  **Prepare the Input Videos**: Place the video files you want to process in the `input_videos` directory.
 
 2.  **Run the Script**:
+- **On Windows**
+	- Run run_processor.bat to start the script
+	
+- **On Mac/Linux**
+	- Make the Shell Script Executable:
+		- ```chmod +x process_videos.sh```
+	- Run the Shell Script:
+		- ```./process_videos.sh```
 
-- Run run_processor.bat to start the script
-  - Alternatively you can run the script manually:
-    - ```python video_processing.py```
+ - **Alternatively you can run the script manually:**
+   - ```python video_processing.py```
 
-3.  **Check the Log File**: The script will generate a log file named `video_processing_<timestamp>.log` in the current directory, containing details about the processing.
+3.  **Check the Log File**: The script will generate a log file named `video_processing_<timestamp>.log` in the current directory, containing details about the processing. This can be helpful if you are having issues with the splitting/saving.
+
+**Purpose**: The `process_videos.sh` script simplifies the setup and execution process on Mac/Linux by automatically creating necessary directories and running the Python script. This ensures a seamless experience similar to the `.bat` file for Windows users.
 
   
 
@@ -179,8 +188,6 @@ sudo pacman -S ffmpeg
 -  **Modify the Transition Detection**: Adjust the parameters (e.g., `d`, `pix_th`, `pic_th`) in the `detect_black_frames()` method to fine-tune the transition detection.
 
 -  **Enhance the Episode Naming**: Modify the `_get_episode_names()` and `_find_matching_episode()` methods to improve the episode naming logic.
-
-  
 
 ## License
 

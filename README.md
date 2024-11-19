@@ -1,6 +1,5 @@
-<<<<<<< HEAD
 
-# Video Processing Tool
+# Episode Segment Splitter
 
   
 
@@ -192,7 +191,3 @@ This project is licensed under the [MIT License](LICENSE).
 ## Contributions
 
 Contributions are welcome! If you find any issues or have suggestions for improvements, please feel free to submit a pull request.
-=======
-# Scene Segment Splitter
-This Python script processes video files, detecting episode transitions and splitting the videos into separate episodes. It also adds the original video's intro to the second episode for each file.
->>>>>>> 97d0633de6b24079a8612f6b1d082cac66bfd43b

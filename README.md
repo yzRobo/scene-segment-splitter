@@ -26,8 +26,6 @@
 
 - Generate a log file with detailed processing information
 
-  
-
 ## Prerequisites
 
 1. Python 3.6 or later
@@ -59,14 +57,15 @@ python3 -m venv myenv
 source myenv/bin/activate
 
 ```
-
 2.  **Install the Required Dependencies**:
 
-```pip install -r requirements.txt```
+	```pip install -r requirements.txt```
 
-  
+	This will install all the necessary Python packages listed in the `requirements.txt` file.
 
-This will install all the necessary Python packages listed in the `requirements.txt` file.
+3.  **Ensure Episode List is Updated**:
+	
+	The CSV file in the root directory is in a specific format. You will need to ensure whatever series you run this for is updated for this format (currently is has the entire list of Hey Arnold! episodes). Sonarr has a great API that allowed me to quickly pull the data needed into Excel, so I could edit it into the CSV format needed for the script. 
 
 ### Setup FFmpeg on Windows
 
@@ -123,7 +122,6 @@ brew install ffmpeg
 
 - If the installation was successful, you should see the FFmpeg version information displayed.
 
-  
 
 ### Setup FFmpeg on Linux
 
@@ -203,8 +201,6 @@ sudo pacman -S ffmpeg
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
-
-  
 
 ## Contributions
 

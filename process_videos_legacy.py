@@ -7,11 +7,12 @@ import tempfile
 import logging
 import sys
 import json
+import time
 from datetime import datetime
 from typing import List, Tuple, Optional, Dict
 from pathlib import Path
 from difflib import SequenceMatcher
-import platform
+from datetime import datetime
 
 def setup_logging():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -40,7 +41,6 @@ class VideoProcessor:
         os.makedirs(output_folder, exist_ok=True)
         self.ffmpeg_path = self._get_ffmpeg_path()
         self.ffprobe_path = self._get_ffprobe_path()
-        self.mkvmerge_path = self._get_mkvmerge_path()
         self.temp_folder = tempfile.mkdtemp()  # Create a temporary directory
 
     def _load_episode_list(self, episode_list_path: str) -> Dict[str, str]:
@@ -163,7 +163,7 @@ class VideoProcessor:
             matches.sort(key=lambda x: x[1], reverse=True)
             for name, ratio, info in matches[:3]:
                 logging.debug(f"Debug: '{name}' - confidence: {ratio:.2f}")
-                if ratio > 0.75 and ratio > best_ratio:  # Adjust threshold as needed
+                if ratio > 0.75 and ratio > best_ratio:  # Lowered threshold from 0.8 to 0.75
                     best_ratio = ratio
                     best_match = info
             
@@ -188,28 +188,40 @@ class VideoProcessor:
         return None
 
     def _get_ffmpeg_path(self) -> str:
-        """Get path to ffmpeg executable from local bin directory"""
-        return self._get_binary_path('ffmpeg')
+        """Get path to ffmpeg executable"""
+        ffmpeg_path = shutil.which('ffmpeg')
+        if ffmpeg_path:
+            return ffmpeg_path
+        
+        common_paths = [
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe"
+        ]
+        
+        for path in common_paths:
+            if os.path.exists(path):
+                return path
+        
+        raise FileNotFoundError("FFmpeg not found. Please install FFmpeg and add it to PATH.")
 
     def _get_ffprobe_path(self) -> str:
-        """Get path to ffprobe executable from local bin directory"""
-        return self._get_binary_path('ffprobe')
-
-    def _get_mkvmerge_path(self) -> str:
-        """Get path to mkvmerge executable from local bin directory"""
-        return self._get_binary_path('mkvmerge')
-
-    def _get_binary_path(self, binary_name: str) -> str:
-        """Get path to binary executable from local bin directory, handling different platforms"""
-        system = platform.system().lower()
-        binary_ext = ''
-        if system == 'windows':
-            binary_ext = '.exe'
-        bin_dir = os.path.join(os.path.dirname(__file__), 'bin')
-        binary_path = os.path.join(bin_dir, binary_name + binary_ext)
-        if os.path.exists(binary_path):
-            return binary_path
-        raise FileNotFoundError(f"{binary_name} executable not found in local 'bin' directory.")
+        """Get path to ffprobe executable"""
+        ffprobe_path = shutil.which('ffprobe')
+        if ffprobe_path:
+            return ffprobe_path
+            
+        common_paths = [
+            os.path.join(os.path.dirname(self.ffmpeg_path), 'ffprobe.exe'),
+            r"C:\ffmpeg\bin\ffprobe.exe",
+            r"C:\Program Files\ffmpeg\bin\ffprobe.exe"
+        ]
+        
+        for path in common_paths:
+            if os.path.exists(path):
+                return path
+                
+        raise FileNotFoundError("ffprobe not found. Please install FFmpeg with ffprobe.")
 
     def _time_to_seconds(self, time_str: str) -> float:
         """Convert timestamp string (HH:MM:SS.mmm) to seconds"""
@@ -247,6 +259,14 @@ class VideoProcessor:
             logging.error(f"Error getting video duration: {e}")
             return None
 
+    def _create_concat_file(self, intro_path: str, episode_path: str) -> str:
+        """Create a concat file for FFmpeg"""
+        concat_file = os.path.join(self.temp_folder, "concat.txt")
+        with open(concat_file, 'w', encoding='utf-8') as f:
+            f.write(f"file '{intro_path.replace(os.sep, '/')}'\n")
+            f.write(f"file '{episode_path.replace(os.sep, '/')}'\n")
+        return concat_file
+    
     def detect_black_frames(self, video_path: str) -> List[Tuple[float, float]]:
         """Use FFmpeg to detect black frames/scenes"""
         logging.info("\nAnalyzing video for black frames...")
@@ -286,14 +306,14 @@ class VideoProcessor:
             
             target_time = 710  # 11:50 in seconds
             margin = 60  # ±60 seconds
-
+            
             time_filtered = []
             for start, end, duration in black_frames:
                 if abs(start - target_time) <= margin:
                     time_filtered.append((start, end, duration))
                     logging.info(f"Found transition near target time: {self._seconds_to_time(start)} - "
                                f"{self._seconds_to_time(end)} (duration: {duration:.2f}s)")
-
+            
             if time_filtered:
                 logging.info(f"Found {len(time_filtered)} transitions near target time")
                 
@@ -353,137 +373,120 @@ class VideoProcessor:
         first_episode_info = self._find_matching_episode(first_episode)
         second_episode_info = self._find_matching_episode(second_episode) if second_episode else None
         
+        # Extract intro (re-encoded)
+        intro_file = os.path.join(self.temp_folder, f"intro{input_ext}")
+        intro_cmd = [
+            self.ffmpeg_path,
+            "-i", str(Path(video_path).resolve()),
+            "-t", str(self.INTRO_DURATION - 0.5),  # Slightly reduce duration
+            "-c:v", "libx264",
+            "-c:a", "aac",
+            "-y",
+            str(Path(intro_file).resolve())
+        ]
+        
+        try:
+            logging.info("\nExtracting intro segment...")
+            subprocess.run(intro_cmd, capture_output=True, text=True, check=True)
+        except Exception as e:
+            logging.error(f"Error extracting intro: {e}")
+            return
+
         for i, (start, end) in enumerate(segments, 1):
             if i == 1:
                 episode_info = first_episode_info
                 episode_name = first_episode
-                include_intro = False  # Intro is already included in the first episode
             else:
                 episode_info = second_episode_info
                 episode_name = second_episode
-                include_intro = True  # We want to include the intro in the second episode
-                    
+                
             if episode_info:
                 output_name = f"{show_name} - S{season:02d}E{episode_info['episode']:02d} - {episode_info['full_name']}{input_ext}"
             else:
                 # Fallback if episode not found in CSV
-                output_name = f"{show_name} - S{season:02d}E{base_episode + i - 1:02d} - {episode_name}{input_ext}"
+                output_name = f"{show_name} - S{season:02d}E{base_episode + i:02d} - {episode_name}{input_ext}"
                 
             output_file = os.path.join(self.output_folder, self._sanitize_filename(output_name))
             
-            # Convert times to the format HH:MM:SS.nnn
-            start_time = self._seconds_to_time(self._time_to_seconds(start))
-            end_time = self._seconds_to_time(self._time_to_seconds(end))
-            
-            temp_output_file = os.path.join(self.temp_folder, f"temp_episode_{i}.mkv")
-            
-            if include_intro:
-                # For episodes where we need to include the intro
-                intro_start = "00:00:00.000"
-                intro_end = self._seconds_to_time(self.INTRO_DURATION)
-                temp_intro_file = os.path.join(self.temp_folder, f"temp_intro_{i}.mkv")
+            if i == 1:
+                # Process first episode
+                extract_cmd = [
+                    self.ffmpeg_path,
+                    "-ss", start,
+                    "-i", str(Path(video_path).resolve()),
+                    "-to", end,
+                    "-c:v", "libx264",
+                    "-preset", "slow",
+                    "-crf", "18",
+                    "-c:a", "aac",
+                    "-b:a", "192k",
+                    "-y",
+                    str(Path(output_file).resolve())
+                ]
                 
-                # Extract the intro
-                intro_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_intro_file).resolve()),
-                    "--split", f"parts:{intro_start}-{intro_end}",
-                    str(Path(video_path).resolve())
-                ]
-                # Extract the episode content
-                temp_episode_content_file = os.path.join(self.temp_folder, f"temp_episode_content_{i}.mkv")
-                content_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_episode_content_file).resolve()),
-                    "--split", f"parts:{start_time}-{end_time}",
-                    str(Path(video_path).resolve())
-                ]
-                # Run commands
-                try:
-                    # Extract intro
-                    result = subprocess.run(intro_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error extracting intro for episode {i}: {result.stderr}")
-                        continue
-                    # Extract episode content
-                    result = subprocess.run(content_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error extracting content for episode {i}: {result.stderr}")
-                        continue
-                    # Concatenate intro and content
-                    concat_cmd = [
-                        self.mkvmerge_path,
-                        "--output", str(Path(temp_output_file).resolve()),
-                        str(Path(temp_intro_file).resolve()), '+', str(Path(temp_episode_content_file).resolve())
-                    ]
-                    result = subprocess.run(concat_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error concatenating intro and content for episode {i}: {result.stderr}")
-                        continue
-                    else:
-                        logging.debug(f"mkvmerge output:\n{result.stdout}")
-                        logging.info(f"Successfully created episode {i} with intro using mkvmerge")
-                    # Move the output file to the desired location
-                    if os.path.exists(temp_output_file):
-                        shutil.move(temp_output_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    else:
-                        logging.error(f"Episode {i} output file not found.")
-                except Exception as e:
-                    logging.error(f"Unexpected error during processing of episode {i}: {e}")
+                subprocess.run(extract_cmd, capture_output=True, text=True, check=True)
+                logging.info(f"Successfully created episode {i}")
             else:
-                # For episodes where we don't need to include the intro
-                # Use mkvmerge for precise splitting without re-encoding
-                split_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_output_file).resolve()),
-                    "--split", f"parts:{start_time}-{end_time}",
-                    str(Path(video_path).resolve())
+                # Process second episode with intro
+                temp_episode = os.path.join(self.temp_folder, f"temp_episode{i}{input_ext}")
+                extract_cmd = [
+                    self.ffmpeg_path,
+                    "-i", str(Path(video_path).resolve()),
+                    "-ss", start,
+                    "-to", end,
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-y",
+                    str(Path(temp_episode).resolve())
                 ]
-                try:
-                    result = subprocess.run(split_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error creating episode {i} with mkvmerge: {result.stderr}")
-                        continue
-                    else:
-                        logging.debug(f"mkvmerge output:\n{result.stdout}")
-                        logging.info(f"Successfully created episode {i} using mkvmerge")
-                    # Move the output file to the desired location
-                    if os.path.exists(temp_output_file):
-                        shutil.move(temp_output_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    elif os.path.exists(temp_output_file.replace('.mkv', '-001.mkv')):
-                        numbered_temp_file = temp_output_file.replace('.mkv', '-001.mkv')
-                        shutil.move(numbered_temp_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    else:
-                        logging.error(f"Episode {i} output file not found.")
-                except Exception as e:
-                    logging.error(f"Unexpected error during processing of episode {i}: {e}")
+                
+                subprocess.run(extract_cmd, capture_output=True, text=True, check=True)
+                
+                # Concatenate with intro
+                concat_file = self._create_concat_file(intro_file, temp_episode)
+                concat_cmd = [
+                    self.ffmpeg_path,
+                    "-f", "concat",
+                    "-safe", "0",
+                    "-i", concat_file,
+                    "-c:v", "libx264",
+                    "-c:a", "aac",
+                    "-y",
+                    str(Path(output_file).resolve())
+                ]
+                
+                subprocess.run(concat_cmd, capture_output=True, text=True, check=True)
+            
+                # Clean up temp files
+                if os.path.exists(temp_episode):
+                    os.remove(temp_episode)
+                if os.path.exists(concat_file):
+                    os.remove(concat_file)
+
+        # Clean up intro file
+        if os.path.exists(intro_file):
+            os.remove(intro_file)
         
-        # Clean up temp folder
-        shutil.rmtree(self.temp_folder, ignore_errors=True)
+        # Try to remove temp directory if empty
+        try:
+            os.rmdir(self.temp_folder)
+        except:
+            pass
 
     def process_videos(self) -> None:
         """Process all videos in the input folder"""
+        total_start_time = time.time()
         videos_found = False
         for file in os.listdir(self.input_folder):
             if file.lower().endswith(self.SUPPORTED_FORMATS):
                 videos_found = True
+                file_start_time = time.time()
                 video_path = os.path.join(self.input_folder, file)
                 logging.info(f"\nProcessing: {file}")
                 
                 # Create a new temporary folder for each video file
                 self.temp_folder = tempfile.mkdtemp()
                 logging.info(f"Created temporary folder: {self.temp_folder}")
-
-                # Convert to MKV if not already in MKV format
-                if not file.lower().endswith('.mkv'):
-                    mkv_video_path = os.path.join(self.temp_folder, os.path.splitext(file)[0] + '.mkv')
-                    if not self.convert_to_mkv(video_path, mkv_video_path):
-                        continue  # Skip this file if conversion fails
-                    video_path = mkv_video_path  # Use the converted MKV file for further processing
-                    logging.info(f"Converted {file} to MKV format for processing.")
 
                 # Get show info and episode names
                 show_name, season, episode, _ = self._get_episode_info(file)
@@ -503,6 +506,11 @@ class VideoProcessor:
                         logging.info(f"Copying directly to output: {output_name}")
                         shutil.copy2(video_path, output_file)
                     
+                    # Add timing for single episode files
+                    file_end_time = time.time()
+                    file_duration = file_end_time - file_start_time
+                    logging.info(f"File processing time: {file_duration:.2f} seconds ({file_duration/60:.2f} minutes)")
+                    
                     # Clean up temp folder and continue to next file
                     if os.path.exists(self.temp_folder):
                         shutil.rmtree(self.temp_folder)
@@ -517,7 +525,7 @@ class VideoProcessor:
                     if transitions:
                         episode1_start = "00:00:00.000"
                         episode1_end = self._seconds_to_time(transitions[0][0])
-                        episode2_start = self._seconds_to_time(transitions[0][0])
+                        episode2_start = self._seconds_to_time(transitions[0][1])
                         episode2_end = self._seconds_to_time(duration)
                         
                         boundaries = [(episode1_start, episode1_end), (episode2_start, episode2_end)]
@@ -534,6 +542,11 @@ class VideoProcessor:
                         logging.info("No valid transitions found")
                 else:
                     logging.info("Could not determine video duration")
+
+                # Add timing for all files (moved outside the if blocks)
+                file_end_time = time.time()
+                file_duration = file_end_time - file_start_time
+                logging.info(f"File processing time: {file_duration:.2f} seconds ({file_duration/60:.2f} minutes)")
                 
                 # Clean up the temporary folder after processing each video
                 logging.info(f"Cleaning up temporary folder: {self.temp_folder}")
@@ -542,27 +555,14 @@ class VideoProcessor:
                 else:
                     logging.info(f"Temporary folder {self.temp_folder} not found. Skipping cleanup.")
         
+        if videos_found:
+            total_end_time = time.time()
+            total_duration = total_end_time - total_start_time
+            logging.info(f"\nTotal processing time: {total_duration:.2f} seconds ({total_duration/60:.2f} minutes)")
+        
         if not videos_found:
             logging.info(f"\nNo supported video files found in {self.input_folder}")
             logging.info(f"Supported formats: {', '.join(self.SUPPORTED_FORMATS)}")
-
-    def convert_to_mkv(self, input_video: str, output_video: str) -> bool:
-        """Convert video to MKV format without re-encoding"""
-        convert_cmd = [
-            self.ffmpeg_path,
-            "-i", str(Path(input_video).resolve()),
-            "-c", "copy",
-            "-sn",  # Exclude subtitles to avoid unsupported codec errors
-            "-y",
-            str(Path(output_video).resolve())
-        ]
-        try:
-            subprocess.run(convert_cmd, capture_output=True, text=True, check=True)
-            logging.info(f"Converted {input_video} to MKV format")
-            return True
-        except subprocess.CalledProcessError as e:
-            logging.error(f"Error converting {input_video} to MKV: {e.stderr}")
-            return False
 
 if __name__ == "__main__":
     log_file = setup_logging()

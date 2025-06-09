@@ -1,10 +1,10 @@
 {
     "input_folder": "input_videos",
     "output_folder": "output_videos",
-    "episode_csv": "C:/Projects/scene-segment-splitter/episode_lists/rugrats_episodes.csv",
-    "intro_duration": 47,
-    "target_time": 760,
-    "time_margin": 45,
+    "episode_csv": "C:/Projects/scene-segment-splitter/episode_lists/ededdneddy_episodes.csv",
+    "intro_duration": 30,
+    "target_time": 686,
+    "time_margin": 5,
     "black_duration": ".2",
     "pixel_threshold": "0.15",
     "picture_threshold": "0.95"

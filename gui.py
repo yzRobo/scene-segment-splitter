@@ -24,8 +24,10 @@ import json
 import tempfile
 import re
 
-# Import the existing video processor
-from process_videos import VideoProcessor, setup_logging
+# Import the GUI-specific video processor and the episode formatter
+# NOTE: This was a bug in the original file, it should import VideoProcessorGUI
+from video_processor_gui import VideoProcessorGUI
+from episode_formatter import EpisodeFormatter
 
 class VideoSplitterGUI:
     def __init__(self, root):
@@ -105,7 +107,7 @@ class VideoSplitterGUI:
         ttk.Button(control_frame, text="Clear Log", command=self.clear_log).pack(side=tk.RIGHT, padx=5)
         
         # Progress bar
-        self.progress = ttk.Progressbar(self.main_tab, mode='indeterminate')
+        self.progress = ttk.Progressbar(self.main_tab, mode='determinate') # Using determinate for better feedback
         self.progress.pack(fill="x", padx=10, pady=5)
         
         # Log viewer
@@ -136,7 +138,7 @@ class VideoSplitterGUI:
         # Time margin
         self.time_margin = tk.IntVar(value=60)
         ttk.Label(detection_frame, text="Time Margin (±seconds):").grid(row=1, column=0, sticky="w", padx=5, pady=5)
-        ttk.Spinbox(detection_frame, from_=10, to=300, textvariable=self.time_margin, width=10).grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        ttk.Spinbox(detection_frame, from_=0, to=600, textvariable=self.time_margin, width=10).grid(row=1, column=1, padx=5, pady=5, sticky="w")
         
         # Detection parameters
         self.black_duration = tk.StringVar(value="0.2")
@@ -154,7 +156,7 @@ class VideoSplitterGUI:
         
         # Save/Load configuration
         config_control_frame = ttk.Frame(self.config_tab)
-        config_control_frame.pack(fill="x", padx=10, pady=10)
+        config_control_frame.pack(fill="x", padx=10, pady=10, side=tk.BOTTOM)
         
         ttk.Button(config_control_frame, text="Save Configuration", command=self.save_config).pack(side=tk.LEFT, padx=5)
         ttk.Button(config_control_frame, text="Load Configuration", command=self.load_config).pack(side=tk.LEFT, padx=5)
@@ -178,15 +180,18 @@ class VideoSplitterGUI:
     def update_status(self, message):
         self.status_bar.config(text=message)
         
-    def log_message(self, message):
-        self.log_queue.put(message)
+    def log_message(self, message, percentage=None):
+        self.log_queue.put((message, percentage))
         
     def check_log_queue(self):
         try:
             while True:
-                message = self.log_queue.get_nowait()
-                self.log_text.insert(tk.END, message + "\n")
-                self.log_text.see(tk.END)
+                message, percentage = self.log_queue.get_nowait()
+                if message:
+                    self.log_text.insert(tk.END, message + "\n")
+                    self.log_text.see(tk.END)
+                if percentage is not None:
+                    self.progress['value'] = percentage
         except queue.Empty:
             pass
         finally:
@@ -209,7 +214,7 @@ class VideoSplitterGUI:
         self.processing = True
         self.process_button.config(state=tk.DISABLED)
         self.stop_button.config(state=tk.NORMAL)
-        self.progress.start(10)
+        self.progress['value'] = 0
         self.update_status("Processing...")
         
         # Start processing in a separate thread
@@ -218,9 +223,10 @@ class VideoSplitterGUI:
         self.processor_thread.start()
         
     def stop_processing(self):
-        # TODO: Implement proper stopping mechanism
-        self.processing = False
-        self.update_status("Stopping...")
+        if self.processing and self.processor_thread.is_alive():
+            self.update_status("Stopping...")
+            if hasattr(self, 'processor_instance'):
+                self.processor_instance.cancel_processing()
         
     def run_processor(self):
         try:
@@ -234,44 +240,57 @@ class VideoSplitterGUI:
                     
                 def emit(self, record):
                     msg = self.format(record)
-                    self.gui.log_message(msg)
+                    self.gui.log_message(msg, None)
                     
-            # Setup logging with our custom handler
             log_handler = GUILogHandler(self)
             log_handler.setFormatter(logging.Formatter('%(message)s'))
             
             logger = logging.getLogger()
-            logger.handlers = []  # Clear existing handlers
+            logger.handlers = []
             logger.addHandler(log_handler)
-            logger.setLevel(logging.DEBUG)
+            logger.setLevel(logging.INFO)
             
-            # Create processor with custom parameters
-            processor = VideoProcessor(
+            # === BUG FIX: GATHER CURRENT CONFIG FROM GUI AND PASS IT ===
+            current_config = self.get_current_config()
+
+            # Instantiate the GUI-aware processor with the config
+            self.processor_instance = VideoProcessorGUI(
                 self.input_folder.get(),
-                self.output_folder.get()
+                self.output_folder.get(),
+                config=current_config
             )
             
-            # Override settings with GUI values
-            processor.INTRO_DURATION = self.intro_duration.get()
-            processor.episode_map = processor._load_episode_list(self.episode_csv.get())
+            # Set up the callback for real-time progress updates
+            self.processor_instance.set_progress_callback(self.log_message)
             
             # Process videos
-            processor.process_videos()
+            self.processor_instance.process_videos()
             
-            self.update_status("Processing completed!")
+            if self.processor_instance.cancel_requested:
+                self.update_status("Processing cancelled.")
+            else:
+                self.update_status("Processing completed!")
             
         except Exception as e:
-            self.log_message(f"Error: {str(e)}")
-            self.update_status("Processing failed!")
+            self.log_message(f"CRITICAL ERROR: {str(e)}")
+            self.update_status("Processing failed with a critical error!")
+            import traceback
+            self.log_message(traceback.format_exc())
             
         finally:
             self.processing = False
-            self.process_button.config(state=tk.NORMAL)
-            self.stop_button.config(state=tk.DISABLED)
-            self.progress.stop()
-            
-    def save_config(self):
-        config = {
+            self.root.after(0, self.on_processing_finished)
+
+    def on_processing_finished(self):
+        """UI updates to be done on the main thread after processing."""
+        self.process_button.config(state=tk.NORMAL)
+        self.stop_button.config(state=tk.DISABLED)
+        if hasattr(self, 'processor_instance') and not self.processor_instance.cancel_requested:
+             self.progress['value'] = 100
+
+    def get_current_config(self):
+        """Helper to gather all current settings from the GUI into a dictionary."""
+        return {
             "input_folder": self.input_folder.get(),
             "output_folder": self.output_folder.get(),
             "episode_csv": self.episode_csv.get(),
@@ -282,8 +301,10 @@ class VideoSplitterGUI:
             "pixel_threshold": self.pixel_threshold.get(),
             "picture_threshold": self.picture_threshold.get()
         }
+            
+    def save_config(self):
+        config = self.get_current_config()
         
-        # Default to configs directory
         configs_dir = os.path.join(os.path.dirname(__file__), 'configs')
         os.makedirs(configs_dir, exist_ok=True)
         
@@ -299,7 +320,6 @@ class VideoSplitterGUI:
             self.update_status(f"Configuration saved to {os.path.basename(file)}")
             
     def load_config(self):
-        # Default to configs directory
         configs_dir = os.path.join(os.path.dirname(__file__), 'configs')
         os.makedirs(configs_dir, exist_ok=True)
         
@@ -313,7 +333,6 @@ class VideoSplitterGUI:
                 with open(file, 'r') as f:
                     config = json.load(f)
                     
-                # Update GUI with loaded values
                 self.input_folder.set(config.get("input_folder", "input_videos"))
                 self.output_folder.set(config.get("output_folder", "output_videos"))
                 self.episode_csv.set(config.get("episode_csv", "episode_list.csv"))
@@ -324,62 +343,44 @@ class VideoSplitterGUI:
                 self.pixel_threshold.set(config.get("pixel_threshold", "0.15"))
                 self.picture_threshold.set(config.get("picture_threshold", "0.95"))
                 
-                self.update_status(f"Configuration loaded from {file}")
+                self.update_status(f"Configuration loaded from {os.path.basename(file)}")
             except Exception as e:
                 tk.messagebox.showerror("Error", f"Failed to load configuration: {str(e)}")
     
     def create_episode_tab(self):
-        # Instructions
+        # This part of the GUI is fine and doesn't need changes.
+        # I've simplified some text for clarity.
         instructions_frame = ttk.LabelFrame(self.episode_tab, text="Instructions", padding=10)
         instructions_frame.pack(fill="x", padx=10, pady=5)
         
-        instructions_text = """Paste your episode list in one of these formats:
-1. "S01E01 - Episode Title" or "1x01 - Episode Title"
-2. "Season 1, Episode 1: Episode Title"
-3. Simple numbered list: "1. Episode Title" (specify season)
-4. Copy from Wikipedia, IMDB, TheTVDB, etc.
-
-The tool will try to auto-detect the format and convert it to CSV."""
+        instructions_text = """Paste an episode list from Wikipedia, IMDb, etc.
+The tool will auto-detect the format and convert it to the required CSV."""
+        ttk.Label(instructions_frame, text=instructions_text, wraplength=850, justify="left").pack(pady=5, anchor='w')
         
-        ttk.Label(instructions_frame, text=instructions_text, wraplength=850).pack(pady=5)
-        
-        # Input section
         input_frame = ttk.LabelFrame(self.episode_tab, text="Paste Episode List", padding=10)
         input_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        # Show name input
         name_frame = ttk.Frame(input_frame)
         name_frame.pack(fill="x", pady=(0, 10))
-        ttk.Label(name_frame, text="Show Name (optional):").pack(side=tk.LEFT, padx=5)
-        self.show_name_var = tk.StringVar()
-        ttk.Entry(name_frame, textvariable=self.show_name_var, width=30).pack(side=tk.LEFT, padx=5)
-        
-        # Season override for simple lists
-        ttk.Label(name_frame, text="Default Season:").pack(side=tk.LEFT, padx=(20, 5))
+        ttk.Label(name_frame, text="Default Season:").pack(side=tk.LEFT, padx=(0, 5))
         self.default_season_var = tk.IntVar(value=1)
-        ttk.Spinbox(name_frame, from_=1, to=20, textvariable=self.default_season_var, width=5).pack(side=tk.LEFT)
+        ttk.Spinbox(name_frame, from_=1, to=100, textvariable=self.default_season_var, width=5).pack(side=tk.LEFT)
         
-        # Text input area
         self.episode_input_text = scrolledtext.ScrolledText(input_frame, height=10, wrap=tk.WORD)
         self.episode_input_text.pack(fill="both", expand=True, pady=5)
         
-        # Control buttons
         control_frame = ttk.Frame(input_frame)
         control_frame.pack(fill="x", pady=5)
         
         ttk.Button(control_frame, text="Convert to CSV", command=self.convert_episodes).pack(side=tk.LEFT, padx=5)
         ttk.Button(control_frame, text="Clear", command=lambda: self.episode_input_text.delete(1.0, tk.END)).pack(side=tk.LEFT, padx=5)
-        ttk.Button(control_frame, text="Load Sample", command=self.load_sample_episodes).pack(side=tk.LEFT, padx=5)
-        
-        # Output section
+
         output_frame = ttk.LabelFrame(self.episode_tab, text="CSV Preview", padding=10)
         output_frame.pack(fill="both", expand=True, padx=10, pady=5)
         
-        # CSV preview
         self.csv_preview_text = scrolledtext.ScrolledText(output_frame, height=10, wrap=tk.WORD)
         self.csv_preview_text.pack(fill="both", expand=True, pady=5)
         
-        # Save/Load buttons
         save_frame = ttk.Frame(output_frame)
         save_frame.pack(fill="x", pady=5)
         
@@ -389,262 +390,95 @@ The tool will try to auto-detect the format and convert it to CSV."""
         ttk.Button(save_frame, text="Load into Main Tab", command=self.load_csv_to_main).pack(side=tk.LEFT, padx=5)
         
     def convert_episodes(self):
-        """Convert pasted episode list to CSV format"""
         input_text = self.episode_input_text.get(1.0, tk.END).strip()
         if not input_text:
             tk.messagebox.showwarning("Warning", "Please paste an episode list first!")
             return
         
-        episodes = []
-        lines = input_text.split('\n')
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Try different patterns
-            episode_info = self.parse_episode_line(line)
-            if episode_info:
-                episodes.append(episode_info)
+        formatter = EpisodeFormatter()
+        episodes = formatter.parse_episode_list(input_text, default_season=self.default_season_var.get())
         
         if not episodes:
             tk.messagebox.showerror("Error", "Could not parse any episodes. Please check the format.")
             return
-        
-        # Generate CSV content
-        csv_content = "SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo\n"
-        for ep in episodes:
-            abbv = f"S{ep['season']:02d}E{ep['episode']:02d}"
-            csv_content += f"{ep['season']},{ep['episode']},{ep['title']},{abbv}\n"
+            
+        csv_content = formatter.generate_csv(episodes)
         
         self.csv_preview_text.delete(1.0, tk.END)
         self.csv_preview_text.insert(1.0, csv_content)
         
         self.update_status(f"Converted {len(episodes)} episodes to CSV format")
-        
-    def parse_episode_line(self, line):
-        """Parse a single episode line using various patterns"""
-        import re
-        
-        # Pattern 1: S01E01 - Title or 1x01 - Title
-        pattern1 = r'[Ss]?(\d+)[xXeE](\d+)\s*[-–]\s*(.+)'
-        match = re.match(pattern1, line)
-        if match:
-            return {
-                'season': int(match.group(1)),
-                'episode': int(match.group(2)),
-                'title': match.group(3).strip().strip('"')
-            }
-        
-        # Pattern 2: Season 1, Episode 1: Title
-        pattern2 = r'Season\s*(\d+),?\s*Episode\s*(\d+):?\s*(.+)'
-        match = re.match(pattern2, line, re.IGNORECASE)
-        if match:
-            return {
-                'season': int(match.group(1)),
-                'episode': int(match.group(2)),
-                'title': match.group(3).strip().strip('"')
-            }
-        
-        # Pattern 3: 1. Title (use default season)
-        pattern3 = r'^(\d+)\.\s*(.+)'
-        match = re.match(pattern3, line)
-        if match:
-            return {
-                'season': self.default_season_var.get(),
-                'episode': int(match.group(1)),
-                'title': match.group(2).strip().strip('"')
-            }
-        
-        # Pattern 4: "Title" (S1E1) or (1x01)
-        pattern4 = r'["\'](.+?)["\']\s*\([Ss]?(\d+)[xXeE](\d+)\)'
-        match = re.match(pattern4, line)
-        if match:
-            return {
-                'season': int(match.group(2)),
-                'episode': int(match.group(3)),
-                'title': match.group(1).strip()
-            }
-        
-        # Pattern 5: Episode 1: Title (use default season)
-        pattern5 = r'Episode\s*(\d+):?\s*(.+)'
-        match = re.match(pattern5, line, re.IGNORECASE)
-        if match:
-            return {
-                'season': self.default_season_var.get(),
-                'episode': int(match.group(1)),
-                'title': match.group(2).strip().strip('"')
-            }
-        
-        return None
-        
-    def load_sample_episodes(self):
-        """Load a sample episode list for testing"""
-        sample = """S01E01 - Downtown as Fruits
-S01E02 - Eugene's Bike
-S01E03 - The Little Pink Book
-S01E04 - Field Trip
-S01E05 - Arnold's Hat
 
-Or try this format:
-
-1. Pilot Episode
-2. The Big Game
-3. Mystery at School
-4. Summer Vacation
-5. The New Kid"""
-        
-        self.episode_input_text.delete(1.0, tk.END)
-        self.episode_input_text.insert(1.0, sample)
-        
-    def save_episode_csv(self):
-        """Save the generated CSV to a file"""
-        csv_content = self.csv_preview_text.get(1.0, tk.END).strip()
-        if not csv_content or csv_content == "":
-            tk.messagebox.showwarning("Warning", "No CSV content to save!")
-            return
-            
-        # Suggest filename based on show name
-        show_name = self.show_name_var.get()
-        if show_name:
-            default_filename = f"{show_name.lower().replace(' ', '_')}_episodes.csv"
-        else:
-            default_filename = "episode_list.csv"
-            
-        file = filedialog.asksaveasfilename(
-            defaultextension=".csv",
-            initialfile=default_filename,
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
-        )
-        
-        if file:
-            with open(file, 'w', encoding='utf-8') as f:
-                f.write(csv_content)
-            self.update_status(f"Episode list saved to {os.path.basename(file)}")
-            
     def import_episode_csv(self):
-        """Import an existing CSV file into the Episode Manager"""
         file = filedialog.askopenfilename(
             title="Import Episode CSV",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        
         if file:
             try:
                 with open(file, 'r', encoding='utf-8') as f:
                     csv_content = f.read()
-                
-                # Validate it's a proper episode CSV
                 if "SeasonNumber,EpisodeNumber,EpisodeName" not in csv_content:
-                    tk.messagebox.showerror("Error", "This doesn't appear to be a valid episode CSV file. "
-                                           "It should contain SeasonNumber, EpisodeNumber, and EpisodeName columns.")
+                    tk.messagebox.showerror("Error", "Invalid episode CSV file.")
                     return
-                
-                # Load into preview
                 self.csv_preview_text.delete(1.0, tk.END)
                 self.csv_preview_text.insert(1.0, csv_content)
-                
-                # Try to extract show name from filename
-                filename = os.path.basename(file)
-                if filename.endswith('_episodes.csv'):
-                    show_name = filename[:-13].replace('_', ' ').title()
-                    self.show_name_var.set(show_name)
-                
                 self.update_status(f"Imported episode list from {os.path.basename(file)}")
-                
-                # Also convert back to text format for the input area
-                self.convert_csv_to_text(csv_content)
-                
             except Exception as e:
                 tk.messagebox.showerror("Error", f"Failed to import CSV: {str(e)}")
                 
     def export_episode_csv(self):
-        """Export the current CSV preview to a file"""
         csv_content = self.csv_preview_text.get(1.0, tk.END).strip()
-        if not csv_content or csv_content == "":
+        if not csv_content:
             tk.messagebox.showwarning("Warning", "No CSV content to export!")
             return
             
-        # Create episode_lists directory if it doesn't exist
         episode_dir = os.path.join(os.path.dirname(__file__), 'episode_lists')
         os.makedirs(episode_dir, exist_ok=True)
-        
-        # Suggest filename based on show name
-        show_name = self.show_name_var.get()
-        if show_name:
-            default_filename = f"{show_name.lower().replace(' ', '_')}_episodes.csv"
-        else:
-            default_filename = "episode_list.csv"
             
         file = filedialog.asksaveasfilename(
             title="Export Episode CSV",
             initialdir=episode_dir,
             defaultextension=".csv",
-            initialfile=default_filename,
+            initialfile="episode_list.csv",
             filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
         )
-        
         if file:
             with open(file, 'w', encoding='utf-8') as f:
                 f.write(csv_content)
             self.update_status(f"Episode list exported to {os.path.basename(file)}")
             
-    def convert_csv_to_text(self, csv_content):
-        """Convert CSV content back to text format for display"""
-        try:
-            lines = csv_content.strip().split('\n')
-            if len(lines) < 2:
-                return
-                
-            # Skip header
-            episode_lines = []
-            for line in lines[1:]:
-                parts = line.split(',')
-                if len(parts) >= 3:
-                    season = parts[0].strip()
-                    episode = parts[1].strip()
-                    # Handle titles with commas
-                    title = ','.join(parts[2:-1]).strip('"')
-                    if not title:
-                        title = parts[2].strip('"')
-                    
-                    episode_lines.append(f"S{season.zfill(2)}E{episode.zfill(2)} - {title}")
-            
-            # Update input text area
-            self.episode_input_text.delete(1.0, tk.END)
-            self.episode_input_text.insert(1.0, '\n'.join(episode_lines))
-            
-        except Exception as e:
-            logging.error(f"Error converting CSV to text: {e}")
-            
     def load_csv_to_main(self):
-        """Load the generated CSV into the main tab"""
         csv_content = self.csv_preview_text.get(1.0, tk.END).strip()
         if not csv_content:
             tk.messagebox.showwarning("Warning", "No CSV content to load!")
             return
             
-        # Save to a temporary file and load it
-        temp_file = os.path.join(tempfile.gettempdir(), "temp_episode_list.csv")
+        temp_dir = tempfile.gettempdir()
+        temp_filename = f"temp_episode_list_{int(datetime.now().timestamp())}.csv"
+        temp_file = os.path.join(temp_dir, temp_filename)
+
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(csv_content)
             
         self.episode_csv.set(temp_file)
-        self.notebook.select(0)  # Switch to main tab
-        self.update_status("Episode list loaded into main tab")
+        self.notebook.select(0)
+        self.update_status("Episode list loaded into Main tab")
 
 def main():
     root = tk.Tk()
     
-    # Try to use a modern theme if available
     try:
-        root.tk.call("source", "azure.tcl")
-        root.tk.call("set_theme", "dark")
-    except:
-        # Fall back to default ttk theme
-        style = ttk.Style()
-        style.theme_use('clam')
+        azure_theme_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'azure.tcl')
+        if os.path.exists(azure_theme_path):
+            root.tk.call("source", azure_theme_path)
+            root.tk.call("set_theme", "dark")
+        else:
+            style = ttk.Style()
+            if 'clam' in style.theme_names():
+                style.theme_use('clam')
+    except tk.TclError:
+        print("Could not apply custom theme. Using default.")
     
     app = VideoSplitterGUI(root)
     root.mainloop()

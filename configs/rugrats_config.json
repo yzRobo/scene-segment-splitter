@@ -3,9 +3,9 @@
     "output_folder": "output_videos",
     "episode_csv": "C:/Projects/scene-segment-splitter/episode_lists/rugrats_episodes.csv",
     "intro_duration": 47,
-    "target_time": 748,
-    "time_margin": 25,
-    "black_duration": "0.1",
-    "pixel_threshold": "0.10",
-    "picture_threshold": "0.98"
+    "target_time": 760,
+    "time_margin": 5,
+    "black_duration": ".2",
+    "pixel_threshold": "0.15",
+    "picture_threshold": "0.95"
 }

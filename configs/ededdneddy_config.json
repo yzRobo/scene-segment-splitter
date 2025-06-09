@@ -4,8 +4,10 @@
     "episode_csv": "C:/Projects/scene-segment-splitter/episode_lists/ededdneddy_episodes.csv",
     "intro_duration": 30,
     "target_time": 686,
-    "time_margin": 5,
+    "time_margin": 10,
     "black_duration": ".2",
     "pixel_threshold": "0.15",
-    "picture_threshold": "0.95"
+    "picture_threshold": "0.95",
+    "transition_selection": "Select Earliest Transition",
+    "split_point": "At Start of Fade"
 }

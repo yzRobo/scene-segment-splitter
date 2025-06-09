@@ -7,5 +7,7 @@
     "time_margin": 45,
     "black_duration": ".2",
     "pixel_threshold": "0.15",
-    "picture_threshold": "0.95"
+    "picture_threshold": "0.95",
+    "transition_selection": "Select Latest Transition",
+    "split_point": "At Start of Fade"
 }

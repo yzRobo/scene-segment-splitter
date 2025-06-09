@@ -163,7 +163,7 @@ if not exist "output_videos" mkdir "output_videos"
 pause
 
 echo Running video processor...
-python process_videos_v2.py
+python process_videos.py
 pause
 
 echo.

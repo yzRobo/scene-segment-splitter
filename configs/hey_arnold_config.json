@@ -1,0 +1,11 @@
+{
+    "input_folder": "input_videos",
+    "output_folder": "output_videos",
+    "episode_csv": "episode_list.csv",
+    "intro_duration": 47,
+    "target_time": 710,
+    "time_margin": 60,
+    "black_duration": "0.2",
+    "pixel_threshold": "0.15",
+    "picture_threshold": "0.95"
+}

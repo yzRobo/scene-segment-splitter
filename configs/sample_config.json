@@ -1,0 +1,24 @@
+{
+    "input_folder": "input_videos",
+    "output_folder": "output_videos",
+    "episode_csv": "episode_list.csv",
+    "intro_duration": 47,
+    "target_time": 710,
+    "time_margin": 60,
+    "black_duration": "0.2",
+    "pixel_threshold": "0.15",
+    "picture_threshold": "0.95",
+    "_comment": "This is a sample configuration file for Scene Segment Splitter",
+    "_show_notes": {
+        "hey_arnold": {
+            "intro_duration": 47,
+            "target_time": 710,
+            "notes": "Standard settings for Hey Arnold! episodes"
+        },
+        "rugrats": {
+            "intro_duration": 30,
+            "target_time": 660,
+            "notes": "Example: Rugrats has a shorter intro and different transition time"
+        }
+    }
+}

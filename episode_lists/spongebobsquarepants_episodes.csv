@@ -1,0 +1,583 @@
+SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
+1,1,Help Wanted,S01E01
+1,2,Reef Blower,S01E02
+1,3,Tea at the Treedome,S01E03
+1,4,Bubblestand,S01E04
+1,5,Ripped Pants,S01E05
+1,6,Jellyfishing,S01E06
+1,7,Plankton!,S01E07
+1,8,Naughty Nautical Neighbors,S01E08
+1,9,Boating School,S01E09
+1,10,Pizza Delivery,S01E10
+1,11,Home Sweet Pineapple,S01E11
+1,12,Mermaid Man and Barnacle Boy,S01E12
+1,13,Pickles,S01E13
+1,14,Hall Monitor,S01E14
+1,15,Jellyfish Jam,S01E15
+1,16,Sandy's Rocket,S01E16
+1,17,Squeaky Boots,S01E17
+1,18,Nature Pants,S01E18
+1,19,Opposite Day,S01E19
+1,20,Culture Shock,S01E20
+1,21,F.U.N.,S01E21
+1,22,MuscleBob BuffPants,S01E22
+1,23,Squidward the Unfriendly Ghost,S01E23
+1,24,The Chaperone,S01E24
+1,25,Employee of the Month,S01E25
+1,26,Scaredy Pants,S01E26
+1,27,I Was a Teenage Gary,S01E27
+1,28,SB-129,S01E28
+1,29,Karate Choppers,S01E29
+1,30,Sleepy Time,S01E30
+1,31,Suds,S01E31
+1,32,Valentine's Day,S01E32
+1,33,The Paper,S01E33
+1,34,Arrgh!,S01E34
+1,35,Rock Bottom,S01E35
+1,36,Texas,S01E36
+1,37,Walking Small,S01E37
+1,38,Fools in April,S01E38
+1,39,Neptune's Spatula,S01E39
+1,40,Hooky,S01E40
+1,41,Mermaid Man and Barnacle Boy II,S01E41
+2,1,Your Shoe's Untied,S02E01
+2,2,Squid's Day Off,S02E02
+2,3,Something Smells,S02E03
+2,4,Bossy Boots,S02E04
+2,5,Big Pink Loser,S02E05
+2,6,Bubble Buddy,S02E06
+2,7,Dying for Pie,S02E07
+2,8,Imitation Krabs,S02E08
+2,9,Wormy,S02E09
+2,10,Patty Hype,S02E10
+2,11,Grandma's Kisses,S02E11
+2,12,Squidville,S02E12
+2,13,Prehibernation Week,S02E13
+2,14,Life of Crime,S02E14
+2,15,Christmas Who?,S02E15
+2,16,Survival of the Idiots,S02E16
+2,17,Dumped,S02E17
+2,18,No Free Rides,S02E18
+2,19,I'm Your Biggest Fanatic,S02E19
+2,20,Mermaid Man and Barnacle Boy III,S02E20
+2,21,Squirrel Jokes,S02E21
+2,22,Pressure,S02E22
+2,23,The Smoking Peanut,S02E23
+2,24,Shanghaied,S02E24
+2,25,Gary Takes a Bath,S02E25
+2,26,Welcome to the Chum Bucket,S02E26
+2,27,Frankendoodle,S02E27
+2,28,The Secret Box,S02E28
+2,29,Band Geeks,S02E29
+2,30,Graveyard Shift,S02E30
+2,31,Krusty Love,S02E31
+2,32,Procrastination,S02E32
+2,33,I'm with Stupid,S02E33
+2,34,Sailor Mouth,S02E34
+2,35,Artist Unknown,S02E35
+2,36,Jellyfish Hunter,S02E36
+2,37,The Fry Cook Games,S02E37
+2,38,Squid on Strike,S02E38
+2,39,Sandy, SpongeBob, and the Worm,S02E39
+3,1,The Algae's Always Greener,S03E01
+3,2,SpongeGuard on Duty,S03E02
+3,3,Club SpongeBob,S03E03
+3,4,My Pretty Seahorse,S03E04
+3,5,Just One Bite,S03E05
+3,6,The Bully,S03E06
+3,7,Nasty Patty,S03E07
+3,8,Idiot Box,S03E08
+3,9,Mermaid Man and Barnacle Boy IV,S03E09
+3,10,Doing Time,S03E10
+3,11,Snowball Effect,S03E11
+3,12,One Krab's Trash,S03E12
+3,13,As Seen on TV,S03E13
+3,14,Can You Spare a Dime?,S03E14
+3,15,No Weenies Allowed,S03E15
+3,16,Squilliam Returns,S03E16
+3,17,Krab Borg,S03E17
+3,18,Rock-a-Bye Bivalve,S03E18
+3,19,Wet Painters,S03E19
+3,20,Krusty Krab Training Video,S03E20
+3,21,Party Pooper Pants,S03E21
+3,22,Chocolate with Nuts,S03E22
+3,23,Mermaid Man and Barnacle Boy V,S03E23
+3,24,New Student Starfish,S03E24
+3,25,Clams,S03E25
+3,26,Ugh,S03E26
+3,27,The Great Snail Race,S03E27
+3,28,Mid-Life Crustacean,S03E28
+3,29,Born Again Krabs,S03E29
+3,30,I Had an Accident,S03E30
+3,31,Krabby Land,S03E31
+3,32,The Camping Episode,S03E32
+3,33,Missing Identity,S03E33
+3,34,Plankton's Army,S03E34
+3,35,The Sponge Who Could Fly,S03E35
+3,36,SpongeBob Meets the Strangler,S03E36
+3,37,Pranks a Lot,S03E37
+4,1,Fear of a Krabby Patty,S04E01
+4,2,Shell of a Man,S04E02
+4,3,The Lost Mattress,S04E03
+4,4,Krabs vs. Plankton,S04E04
+4,5,Have You Seen This Snail?,S04E05
+4,6,Skill Crane,S04E06
+4,7,Good Neighbors,S04E07
+4,8,Selling Out,S04E08
+4,9,Funny Pants,S04E09
+4,10,Dunces and Dragons,S04E10
+4,11,Enemy In-Law,S04E11
+4,12,Mermaid Man and Barnacle Boy VI: The Motion Picture,S04E12
+4,13,Patrick SmartPants,S04E13
+4,14,SquidBob TentaclePants,S04E14
+4,15,Krusty Towers,S04E15
+4,16,Mrs. Puff, You're Fired,S04E16
+4,17,Chimps Ahoy,S04E17
+4,18,Ghost Host,S04E18
+4,19,Whale of a Birthday,S04E19
+4,20,Karate Island,S04E20
+4,21,All That Glitters,S04E21
+4,22,Wishing You Well,S04E22
+4,23,New Leaf,S04E23
+4,24,Once Bitten,S04E24
+4,25,Bummer Vacation,S04E25
+4,26,Wigstruck,S04E26
+4,27,Squidtastic Voyage,S04E27
+4,28,That's No Lady,S04E28
+4,29,The Thing,S04E29
+4,30,Hocus Pocus,S04E30
+4,31,Driven to Tears,S04E31
+4,32,Rule of Dumb,S04E32
+4,33,Born to Be Wild,S04E33
+4,34,Best Frenemies,S04E34
+4,35,The Pink Purloiner,S04E35
+4,36,Squid Wood,S04E36
+4,37,Best Day Ever,S04E37
+4,38,The Gift of Gum,S04E38
+5,1,Friend or Foe,S05E01
+5,2,The Original Fry Cook,S05E02
+5,3,Night Light,S05E03
+5,4,Rise and Shine,S05E04
+5,5,Waiting,S05E05
+5,6,Fungus Among Us,S05E06
+5,7,Spy Buddies,S05E07
+5,8,Boat Smarts,S05E08
+5,9,Good Ol' Whatshisname,S05E09
+5,10,New Digs,S05E10
+5,11,Krabs à la Mode,S05E11
+5,12,Roller Cowards,S05E12
+5,13,Bucket Sweet Bucket,S05E13
+5,14,To Love a Patty,S05E14
+5,15,Breath of Fresh Squidward,S05E15
+5,16,Money Talks,S05E16
+5,17,SpongeBob vs. The Patty Gadget,S05E17
+5,18,Slimy Dancing,S05E18
+5,19,The Krusty Sponge,S05E19
+5,20,Sing a Song of Patrick,S05E20
+5,21,A Flea in Her Dome,S05E21
+5,22,The Donut of Shame,S05E22
+5,23,The Krusty Plate,S05E23
+5,24,Goo Goo Gas,S05E24
+5,25,Le Big Switch,S05E25
+5,26,Atlantis SquarePantis,S05E26
+5,27,Picture Day,S05E27
+5,28,Pat No Pay,S05E28
+5,29,BlackJack,S05E29
+5,30,Blackened Sponge,S05E30
+5,31,Mermaid Man vs. SpongeBob,S05E31
+5,32,The Inmates of Summer,S05E32
+5,33,To Save a Squirrel,S05E33
+5,34,Pest of the West,S05E34
+5,35,20,000 Patties Under the Sea,S05E35
+5,36,The Battle of Bikini Bottom,S05E36
+5,37,What Ever Happened to SpongeBob?,S05E37
+5,38,The Two Faces of Squidward,S05E38
+5,39,SpongeHenge,S05E39
+5,40,Banned in Bikini Bottom,S05E40
+5,41,Stanley S. SquarePants,S05E41
+6,1,House Fancy,S06E01
+6,2,Krabby Road,S06E02
+6,3,Penny Foolish,S06E03
+6,4,Nautical Novice,S06E04
+6,5,Spongicus,S06E05
+6,6,Suction Cup Symphony,S06E06
+6,7,Not Normal,S06E07
+6,8,Gone,S06E08
+6,9,The Splinter,S06E09
+6,10,Slide Whistle Stooges,S06E10
+6,11,A Life in a Day,S06E11
+6,12,Sun Bleached,S06E12
+6,13,Giant Squidward,S06E13
+6,14,No Nose Knows,S06E14
+6,15,Patty Caper,S06E15
+6,16,Plankton's Regular,S06E16
+6,17,Boating Buddies,S06E17
+6,18,The Krabby Kronicle,S06E18
+6,19,The Slumber Party,S06E19
+6,20,Grooming Gary,S06E20
+6,21,SpongeBob SquarePants vs. The Big One,S06E21
+6,22,Porous Pockets,S06E22
+6,23,Choir Boys,S06E23
+6,24,Krusty Krushers,S06E24
+6,25,The Card,S06E25
+6,26,Dear Vikings,S06E26
+6,27,Ditchin',S06E27
+6,28,Grandpappy the Pirate,S06E28
+6,29,Cephalopod Lodge,S06E29
+6,30,Squid's Visit,S06E30
+6,31,To SquarePants or Not to SquarePants,S06E31
+6,32,Shuffleboarding,S06E32
+6,33,Professor Squidward,S06E33
+6,34,Pet or Pests,S06E34
+6,35,Komputer Overload,S06E35
+6,36,Gullible Pants,S06E36
+6,37,Overbooked,S06E37
+6,38,No Hat for Pat,S06E38
+6,39,Toy Store of Doom,S06E39
+6,40,Sand Castles in the Sand,S06E40
+6,41,Shell Shocked,S06E41
+6,42,Chum Bucket Supreme,S06E42
+6,43,Single Cell Anniversary,S06E43
+6,44,Truth or Square,S06E44
+6,45,Pineapple Fever,S06E45
+6,46,Chum Caverns,S06E46
+6,47,Tentacle-Vision,S06E47
+6,48,I ♥ Dancing,S06E48
+6,49,Growth Spout,S06E49
+6,50,Stuck in the Wringer,S06E50
+6,51,Someone's in the Kitchen with Sandy,S06E51
+6,52,The Inside Job,S06E52
+6,53,Greasy Buffoons,S06E53
+6,54,Model Sponge,S06E54
+6,55,Keep Bikini Bottom Beautiful,S06E55
+6,56,A Pal for Gary,S06E56
+6,57,Yours, Mine and Mine,S06E57
+6,58,Kracked Krabs,S06E58
+6,59,The Curse of Bikini Bottom,S06E59
+6,60,Squidward in Clarinetland,S06E60
+6,61,SpongeBob's Last Stand,S06E61
+6,62,Back to the Past,S06E62
+6,63,The Bad Guy Club for Villains,S06E63
+6,64,A Day Without Tears,S06E64
+6,65,Summer Job,S06E65
+6,66,One Coarse Meal,S06E66
+6,67,Gary in Love,S06E67
+6,68,The Play's the Thing,S06E68
+6,69,Rodeo Daze,S06E69
+6,70,Gramma's Secret Recipe,S06E70
+6,71,The Cent of Money,S06E71
+7,1,Tentacle-Vision,S07E01
+7,2,I ♥ Dancing,S07E02
+7,3,Growth Spout,S07E03
+7,4,Stuck in the Wringer,S07E04
+7,5,Someone's in the Kitchen with Sandy,S07E05
+7,6,The Inside Job,S07E06
+7,7,Greasy Buffoons,S07E07
+7,8,Model Sponge,S07E08
+7,9,Keep Bikini Bottom Beautiful,S07E09
+7,10,A Pal for Gary,S07E10
+7,11,Yours, Mine and Mine,S07E11
+7,12,Kracked Krabs,S07E12
+7,13,The Curse of Bikini Bottom,S07E13
+7,14,Squidward in Clarinetland,S07E14
+7,15,SpongeBob's Last Stand,S07E15
+7,16,Back to the Past,S07E16
+7,17,The Bad Guy Club for Villains,S07E17
+7,18,A Day Without Tears,S07E18
+7,19,Summer Job,S07E19
+7,20,One Coarse Meal,S07E20
+7,21,Gary in Love,S07E21
+7,22,The Play's the Thing,S07E22
+7,23,Rodeo Daze,S07E23
+7,24,Gramma's Secret Recipe,S07E24
+7,25,The Cent of Money,S07E25
+7,26,The Monster Who Came to Bikini Bottom,S07E26
+7,27,Welcome to the Bikini Bottom Triangle,S07E27
+7,28,The Curse of the Hex,S07E28
+7,29,The Main Drain,S07E29
+7,30,Trenchbillies,S07E30
+7,31,Sponge-Cano!,S07E31
+7,32,The Great Patty Caper,S07E32
+7,33,That Sinking Feeling,S07E33
+7,34,Karate Star,S07E34
+7,35,Buried in Time,S07E35
+7,36,Enchanted Tiki Dreams,S07E36
+7,37,The Abrasive Side,S07E37
+7,38,Earworm,S07E38
+7,39,Hide and Then What Happens?,S07E39
+7,40,Shellback Shenanigans,S07E40
+7,41,The Masterpiece,S07E41
+7,42,Whelk Attack,S07E42
+7,43,You Don't Know Sponge,S07E43
+7,44,Tunnel of Glove,S07E44
+7,45,Krusty Dogs,S07E45
+7,46,The Wreck of the Mauna Loa,S07E46
+7,47,New Fish in Town,S07E47
+7,48,Love That Squid,S07E48
+7,49,Big Sister Sam,S07E49
+7,50,Perfect Chemistry,S07E50
+8,1,Accidents Will Happen,S08E01
+8,2,The Other Patty,S08E02
+8,3,Drive Thru,S08E03
+8,4,The Hot Shot,S08E04
+8,5,A Friendly Game,S08E05
+8,6,Sentimental Sponge,S08E06
+8,7,Frozen Face-Off,S08E07
+8,8,Squidward's School for Grown-Ups,S08E08
+8,9,Oral Report,S08E09
+8,10,Sweet and Sour Squid,S08E10
+8,11,The Googly Artiste,S08E11
+8,12,A SquarePants Family Vacation,S08E12
+8,13,Patrick's Staycation,S08E13
+8,14,Walking the Plankton,S08E14
+8,15,Mooncation,S08E15
+8,16,Mr. Krabs Takes a Vacation,S08E16
+8,17,Ghoul Fools,S08E17
+8,18,Mermaid Man Begins,S08E18
+8,19,Plankton's Good Eye,S08E19
+8,20,Barnacle Face,S08E20
+8,21,Pet Sitter Pat,S08E21
+8,22,House Sittin' for Sandy,S08E22
+8,23,Smoothe Jazz at Bikini Bottom,S08E23
+8,24,Bubble Troubles,S08E24
+8,25,The Way of the Sponge,S08E25
+8,26,The Krabby Patty That Ate Bikini Bottom,S08E26
+8,27,Bubble Buddy Returns,S08E27
+8,28,Restraining SpongeBob,S08E28
+8,29,Fiasco!,S08E29
+8,30,Are You Happy Now?,S08E30
+8,31,Planet of the Jellyfish,S08E31
+8,32,Free Samples,S08E32
+8,33,Home Sweet Rubble,S08E33
+8,34,Karen 2.0,S08E34
+8,35,InSPONGEiac,S08E35
+8,36,Face Freeze!,S08E36
+8,37,Glove World R.I.P.,S08E37
+8,38,Squiditis,S08E38
+8,39,Demolition Doofus,S08E39
+8,40,Treats!,S08E40
+8,41,For Here or to Go,S08E41
+8,42,It's a SpongeBob Christmas!,S08E42
+8,43,Super Spongy Square Shorts,S08E43
+8,44,Chum Fricassee,S08E44
+8,45,The Good Krabby Name,S08E45
+8,46,Move It or Lose It,S08E46
+8,47,Hello Bikini Bottom!,S08E47
+9,1,Extreme Spots,S09E01
+9,2,Squirrel Record,S09E02
+9,3,Patrick-Man!,S09E03
+9,4,Gary's New Toy,S09E04
+9,5,License to Milkshake,S09E05
+9,6,Squid Baby,S09E06
+9,7,Little Yellow Book,S09E07
+9,8,Bumper to Bumper,S09E08
+9,9,Eek, an Urchin!,S09E09
+9,10,Squid Defense,S09E10
+9,11,Jailbreak!,S09E11
+9,12,Evil Spatula,S09E12
+9,13,It Came from Goo Lagoon,S09E13
+9,14,Safe Deposit Krabs,S09E14
+9,15,Plankton's Pet,S09E15
+9,16,Don't Look Now,S09E16
+9,17,Séance Shméance,S09E17
+9,18,Kenny the Cat,S09E18
+9,19,Yeti Krabs,S09E19
+9,20,SpongeBob You're Fired,S09E20
+9,21,Lost in Bikini Bottom,S09E21
+9,22,Tutor Sauce,S09E22
+9,23,Squid Plus One,S09E23
+9,24,The Executive Treatment,S09E24
+9,25,Company Picnic,S09E25
+9,26,Pull Up a Barrel,S09E26
+9,27,Sanctuary!,S09E27
+9,28,What's Eating Patrick?,S09E28
+9,29,Patrick! The Game,S09E29
+9,30,The Sewers of Bikini Bottom,S09E30
+9,31,SpongeBob LongPants,S09E31
+9,32,Larry's Gym,S09E32
+9,33,The Fish Bowl,S09E33
+9,34,Married to Money,S09E34
+9,35,Mall Girl Pearl,S09E35
+9,36,Two Thumbs Down,S09E36
+9,37,Sharks vs. Pods,S09E37
+9,38,CopyBob DittoPants,S09E38
+9,39,Sold!,S09E39
+9,40,Lame and Fortune,S09E40
+9,41,Goodbye, Krabby Patty?,S09E41
+9,42,Sandy's Nutmare,S09E42
+9,43,Bulletin Board,S09E43
+9,44,Food Con Castaways,S09E44
+9,45,Snail Mail,S09E45
+9,46,Pineapple Invasion,S09E46
+9,47,Salsa Imbecilicus,S09E47
+9,48,Mutiny on the Krusty,S09E48
+9,49,The Whole Tooth,S09E49
+10,1,Whirly Brains,S10E01
+10,2,Mermaid Pants,S10E02
+10,3,Unreal Estate,S10E03
+10,4,Code Yellow,S10E04
+10,5,Mimic Madness,S10E05
+10,6,House Worming,S10E06
+10,7,Snooze You Lose,S10E07
+10,8,Krusty Katering,S10E08
+10,9,SpongeBob's Place,S10E09
+10,10,Plankton Gets the Boot,S10E10
+10,11,Life Insurance,S10E11
+10,12,Burst Your Bubble,S10E12
+10,13,Plankton Retires,S10E13
+10,14,Trident Trouble,S10E14
+10,15,The Incredible Shrinking Sponge,S10E15
+10,16,Sportz?,S10E16
+10,17,The Getaway,S10E17
+10,18,Lost and Found,S10E18
+10,19,Patrick's Coupon,S10E19
+10,20,Out of the Picture,S10E20
+10,21,Feral Friends,S10E21
+10,22,Don't Wake Patrick,S10E22
+11,1,Cave Dwelling Sponge,S11E01
+11,2,The Clam Whisperer,S11E02
+11,3,Spot Returns,S11E03
+11,4,The Check-Up,S11E04
+11,5,Spin the Bottle,S11E05
+11,6,There's a Sponge in My Soup,S11E06
+11,7,Man Ray Returns,S11E07
+11,8,Larry the Floor Manager,S11E08
+11,9,The Legend of Boo-Kini Bottom,S11E09
+11,10,No Pictures Please,S11E10
+11,11,Stuck on the Roof,S11E11
+11,12,Krabby Patty Creature Feature,S11E12
+11,13,Teacher's Pests,S11E13
+11,14,Sanitation Insanity,S11E14
+11,15,Bunny Hunt,S11E15
+11,16,Squid Noir,S11E16
+11,17,Scavenger Pants,S11E17
+11,18,Cuddle E. Hugs,S11E18
+11,19,Pat the Horse,S11E19
+11,20,Chatterbox Gary,S11E20
+11,21,Don't Feed the Clowns,S11E21
+11,22,Drive Happy,S11E22
+11,23,Old Man Patrick,S11E23
+11,24,Fun-Sized Friends,S11E24
+11,25,Grandmamma's Boy,S11E25
+11,26,Doodle Duds,S11E26
+11,27,Whale Watching,S11E27
+11,28,Krusty Kleaners,S11E28
+11,29,Patnocchio,S11E29
+11,30,ChefBob,S11E30
+11,31,Plankton Paranoia,S11E31
+11,32,Library Cards,S11E32
+11,33,Call the Cops,S11E33
+11,34,Surf N' Turf,S11E34
+11,35,Goons on the Moon,S11E35
+11,36,Appointment TV,S11E36
+11,37,Karen's Virus,S11E37
+11,38,The Grill is Gone,S11E38
+11,39,The Night Patty,S11E39
+11,40,Bubbletown,S11E40
+11,41,Girls' Night Out,S11E41
+11,42,Squirrel Jelly,S11E42
+11,43,The String,S11E43
+11,44,Ink Lemonade,S11E44
+11,45,Mustard O' Mine,S11E45
+11,46,Shopping List,S11E46
+11,47,The Nitwitting,S11E47
+11,48,The Krusty Slammer,S11E48
+11,49,Vantastic Voyage,S11E49
+11,50,The Whole Tooth,S11E50
+12,1,FarmerBob,S12E01
+12,2,Gary & Spot,S12E02
+12,3,The Nitwitting,S12E03
+12,4,The Krusty Slammer,S12E04
+12,5,SpongeBob's Big Birthday Blowout,S12E05
+12,6,Sandy's Nutty Nieces,S12E06
+12,7,Insecurity Guards,S12E07
+12,8,Broken Alarm,S12E08
+12,9,Karen's Baby,S12E09
+12,10,Shell Games,S12E10
+12,11,Senior Discount,S12E11
+12,12,Mind the Gap,S12E12
+12,13,Dirty Bubble Returns,S12E13
+12,14,The Hankering,S12E14
+12,15,Biddy Sitting,S12E15
+12,16,Patrick's Tantrum,S12E16
+12,17,Plankton's Old Chum,S12E17
+12,18,Stormy Weather,S12E18
+12,19,Swamp Mates,S12E19
+12,20,One Trick Sponge,S12E20
+12,21,The Krusty Bucket,S12E21
+12,22,Squid's on a Bus,S12E22
+12,23,Sandy's Rocket Rush,S12E23
+12,24,The Goofy Newbie,S12E24
+12,25,The Ghost of Plankton,S12E25
+12,26,My Two Krabses,S12E26
+12,27,Knock, Knock, Who's There?,S12E27
+12,28,Pat hearts Squid,S12E28
+12,29,Lighthouse Louie,S12E29
+12,30,Hiccup Plague,S12E30
+12,31,A Cabin in the Kelp,S12E31
+12,32,The Hankering,S12E32
+12,33,Plankton's Intern,S12E33
+12,34,Patrick's Pregnant,S12E34
+12,35,A Place for Pets,S12E35
+12,36,Lockdown for Love,S12E36
+12,37,Under the Small Top,S12E37
+12,38,Squidward's Sick Daze,S12E38
+12,39,Goofy Scoopers,S12E39
+12,40,Pat the Dog,S12E40
+12,41,Something Narwhal This Way Comes,S12E41
+12,42,C.H.U.M.S,S12E42
+12,43,SpongeBob's Bad Habit,S12E43
+12,44,Way of the Sponge,S12E44
+12,45,Krusty Koncessionaires,S12E45
+12,46,Dream Hoppers,S12E46
+12,47,A Place for Pets,S12E47
+12,48,Lockdown for Love,S12E48
+12,49,Under the Small Top,S12E49
+12,50,Squidward's Sick Daze,S12E50
+13,1,A Place for Pets,S13E01
+13,2,Lockdown for Love,S13E02
+13,3,Under the Small Top,S13E03
+13,4,Squidward's Sick Daze,S13E04
+13,5,Goofy Scoopers,S13E05
+13,6,Pat the Dog,S13E06
+13,7,Something Narwhal This Way Comes,S13E07
+13,8,C.H.U.M.S,S13E08
+13,9,SpongeBob's Bad Habit,S13E09
+13,10,Way of the Sponge,S13E10
+13,11,Krusty Koncessionaires,S13E11
+13,12,Dream Hoppers,S13E12
+13,13,Food-Pocalypse,S13E13
+13,14,The Salty Sponge,S13E14
+13,15,The Patrick Show!,S13E15
+13,16,Sandy's Vacation in Ruins,S13E16
+13,17,Plankton's Baby,S13E17
+13,18,Patrick's Tantrum,S13E18
+13,19,SpongeBob's Road to Christmas,S13E19
+13,20,Potato Puff,S13E20
+13,21,There Will Be Shrieking,S13E21
+13,22,The Big Bad Bubble Bass,S13E22
+13,23,SpongeBob's Big Blowout,S13E23
+13,24,The Goofy Newbie,S13E24
+13,25,The Ghost of Plankton,S13E25
+13,26,My Two Krabses,S13E26
+14,1,Single-Celled Defense,S14E01
+14,2,Buff for Puff,S14E02
+14,3,We Heart Hoops,S14E03
+14,4,SpongeChovy,S14E04
+14,5,BassWard,S14E05
+14,6,Squidiot Box,S14E06
+14,7,Momageddon,S14E07
+14,8,Pet the Rock,S14E08
+14,9,Tango Tangle,S14E09
+14,10,Necro-Nom-Nom-Nom-I-Con,S14E10
+14,11,Blood is Thicker Than Grease,S14E11
+14,12,Don't Make Me Laugh,S14E12
+14,13,PL-1413,S14E13
+14,14,In the Mood to Feud,S14E14
+14,15,Mooned!,S14E15
+14,16,Hysterical History,S14E16
+14,17,The Dirty Bubble Bass,S14E17
+14,18,Sheldon SquarePants,S14E18
+14,19,Sandy's Country Christmas,S14E19
+14,20,Kreepaway Kamp,S14E20
+14,21,Snow Yellow,S14E21

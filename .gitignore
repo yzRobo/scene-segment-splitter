@@ -164,3 +164,4 @@ cython_debug/
 *.mkv
 *.mp4
 *.avi
+*.png

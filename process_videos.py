@@ -1,568 +1,893 @@
-import os
-import subprocess
-import shutil
-import csv
-import re
-import tempfile
-import logging
-import sys
-import json
-from datetime import datetime
-from typing import List, Tuple, Optional, Dict
-from pathlib import Path
-from difflib import SequenceMatcher
-import platform
+"""
+process_videos.py - Scene Segment Splitter core engine
 
-def setup_logging():
+A single, reliable engine used by BOTH the CLI (scene_splitter.py --cli) and the
+GUI (video_processor_gui.py / gui.py). It:
+
+  * loads an episode list (tolerant of malformed / unquoted CSVs),
+  * parses show / season / episode(s) / titles out of the filename,
+  * detects inter-episode transitions (long fades to black, with fallbacks),
+  * splits the source into per-episode files without re-encoding (mkvmerge),
+  * re-inserts the shared intro at the start of every segment after the first.
+
+Design notes
+------------
+Inter-episode boundaries are LONG fades (typically 3-6s), while act/commercial
+breaks are short (~0.3-1.5s). The detector therefore scores candidates by black
+duration (longer = better) and proximity to the expected boundary, instead of
+filtering long fades out. The expected boundary for an N-segment file is derived
+from the runtime:  boundary_j = intro + j * (duration - intro) / N.
+For the common two-episode case this is  (duration + intro) / 2 .
+"""
+
+import os
+import re
+import sys
+import csv
+import json
+import shutil
+import logging
+import platform
+import tempfile
+import unicodedata
+import subprocess
+from io import StringIO
+from pathlib import Path
+from datetime import datetime
+from difflib import SequenceMatcher
+from typing import List, Tuple, Optional, Dict
+
+# Directory this module lives in - used to resolve bundled binaries, the default
+# episode list and relative config paths regardless of the current directory.
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Release-metadata / quality tags that may appear in a filename but never in a
+# real episode title. Stripped (case-insensitively) before matching. Only clear
+# technical tokens are listed - ambiguous English words (e.g. "proper",
+# "internal") are deliberately excluded so real titles are never corrupted.
+_TAG_PATTERN = re.compile(
+    r'\b('
+    r'\d{3,4}p|x26[45]|h\.?26[45]|hevc|xvid|divx|'
+    r'web-?dl|web-?rip|bluray|blu-ray|bdrip|brrip|dvdrip|hdtv|amzn|dsnp|hmax|'
+    r'aac\d?|ac3|dd5\.1|ddp5\.1|flac|10bit|remux|repack'
+    r')\b',
+    re.IGNORECASE,
+)
+# A trailing release-group tag in brackets, e.g. "[GROUP]" or "{grp}". Kept
+# strict (bracketed only) so legitimate hyphenated titles such as
+# "The Ed-touchables" or "Mission Ed-Possible" are never truncated.
+_GROUP_PATTERN = re.compile(r'\s*[\[\{][^\]\}]{1,40}[\]\}]\s*$')
+
+# Candidate separators between two (or more) episode titles in a filename.
+# Order matters: multi-character separators are tried before single characters.
+_SEGMENT_SEPARATORS = [' + ', '+', ' & ', ' and ', ' / ', ' _ ', '_']
+
+
+def setup_logging(log_dir: str = "logs") -> str:
+    """Configure logging to a timestamped file (under log_dir) and stdout."""
+    os.makedirs(log_dir, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_filename = f"video_processing_{timestamp}.log"
-    
-    # Configure logging to write to both file and console
+    log_filename = os.path.join(log_dir, f"video_processing_{timestamp}.log")
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=logging.INFO,
         format='%(message)s',
         handlers=[
             logging.FileHandler(log_filename, encoding='utf-8'),
-            logging.StreamHandler(sys.stdout)
-        ]
+            logging.StreamHandler(sys.stdout),
+        ],
     )
     return log_filename
 
-class VideoProcessor:
-    SUPPORTED_FORMATS = ('.mkv', '.mp4')
-    INTRO_DURATION = 47  # Duration of the intro in seconds (adjust as needed)
 
-    def __init__(self, input_folder: str, output_folder: str):
-        """Initialize the video processor with input and output folders"""
+class VideoProcessor:
+    SUPPORTED_FORMATS = ('.mkv', '.mp4', '.avi', '.m4v', '.mov')
+    INTRO_DURATION = 47  # seconds; overridden per-show via config
+
+    def __init__(self, input_folder: str, output_folder: str,
+                 config: Optional[dict] = None, progress_callback=None):
         self.input_folder = input_folder
         self.output_folder = output_folder
-        self.episode_map = self._load_episode_list("episode_list.csv")
+        self.progress_callback = progress_callback
+        self.cancel_requested = False
+        self.temp_folder: Optional[str] = None
+
+        # Resolve binaries once (bundled bin/ first, then system PATH).
+        self.ffmpeg_path = self._get_binary_path('ffmpeg')
+        self.ffprobe_path = self._get_binary_path('ffprobe')
+        self.mkvmerge_path = self._get_binary_path('mkvmerge')
+
         os.makedirs(output_folder, exist_ok=True)
-        self.ffmpeg_path = self._get_ffmpeg_path()
-        self.ffprobe_path = self._get_ffprobe_path()
-        self.mkvmerge_path = self._get_mkvmerge_path()
-        self.temp_folder = tempfile.mkdtemp()  # Create a temporary directory
 
-    def _load_episode_list(self, episode_list_path: str) -> Dict[str, str]:
-        """Load episode list from CSV and create a mapping of episode names to episode codes"""
-        episode_map = {}
+        # Config-driven parameters (with sensible defaults).
+        self.episode_map: Dict[str, List[dict]] = {}
+        self._episode_by_number: Dict[Tuple[int, int], dict] = {}
+        self.apply_config(config or {})
+
+        # If the config did not supply a valid episode list, fall back to the
+        # bundled default so the tool still runs out of the box.
+        if not self.episode_map:
+            default_csv = os.path.join(APP_DIR, "episode_list.csv")
+            if os.path.exists(default_csv):
+                self._set_episode_list(default_csv)
+
+    # ------------------------------------------------------------------ config
+    def apply_config(self, config: dict) -> None:
+        self.INTRO_DURATION = int(config.get('intro_duration', self.INTRO_DURATION))
+        # auto_target: derive the expected boundary from runtime. Defaults to
+        # True unless a legacy config pins an explicit target_time.
+        self.auto_target = bool(config.get('auto_target', 'target_time' not in config))
+        self.target_time = float(config.get('target_time', 710))
+        self.time_margin = float(config.get('time_margin', 120))
+        self.black_duration = str(config.get('black_duration', "0.2"))
+        self.pixel_threshold = str(config.get('pixel_threshold', "0.15"))
+        self.picture_threshold = str(config.get('picture_threshold', "0.95"))
+        # "Smart" (duration/proximity scoring) is the robust default; the two
+        # positional modes are kept for backward compatibility with old configs.
+        self.transition_selection = config.get('transition_selection', "Smart")
+        self.split_point = config.get('split_point', "At Start of Fade")
+        self.detection_method = config.get('detection_method', "Comprehensive (All Methods)")
+        # What to do when no boundary can be found: copy the source through
+        # unsplit (safe default), split at the derived midpoint, or skip.
+        self.on_detection_failure = config.get('on_detection_failure', "copy")
+
+        episode_csv = config.get('episode_csv')
+        if episode_csv:
+            resolved = self._resolve_path(episode_csv)
+            if os.path.exists(resolved):
+                self._set_episode_list(resolved)
+            else:
+                logging.warning(f"Configured episode_csv not found: {episode_csv} "
+                                f"(resolved: {resolved}); keeping current episode list.")
+
+    def _resolve_path(self, path: str) -> str:
+        """Resolve a possibly-relative path against CWD then the app directory."""
+        if os.path.isabs(path):
+            return path
+        if os.path.exists(path):
+            return os.path.abspath(path)
+        candidate = os.path.join(APP_DIR, path)
+        return candidate if os.path.exists(candidate) else path
+
+    # ------------------------------------------------------------- progress/log
+    def _progress(self, message: str, percentage: Optional[float] = None) -> None:
+        """Emit a progress message (to the log) and an optional percentage
+        (to the GUI callback). Safe to call from the base/CLI too."""
+        if message:
+            logging.info(message)
+        if self.progress_callback and percentage is not None:
+            self.progress_callback(None, percentage)
+
+    def set_progress_callback(self, callback) -> None:
+        self.progress_callback = callback
+
+    def cancel_processing(self) -> None:
+        self.cancel_requested = True
+        self._progress("Cancellation requested...")
+
+    # -------------------------------------------------------------- binaries
+    def _get_binary_path(self, binary_name: str) -> str:
+        """Locate a helper binary: bundled bin/ first, then the system PATH."""
+        ext = '.exe' if platform.system().lower() == 'windows' else ''
+        bundled = os.path.join(APP_DIR, 'bin', binary_name + ext)
+        if os.path.exists(bundled):
+            return bundled
+        on_path = shutil.which(binary_name)
+        if on_path:
+            return on_path
+        raise FileNotFoundError(
+            f"'{binary_name}' not found. Place {binary_name}{ext} in the 'bin' "
+            f"folder or install it and add it to your PATH."
+        )
+
+    # --------------------------------------------------------- episode list
+    def _set_episode_list(self, path: str) -> None:
+        self.episode_map, self._episode_by_number = self._load_episode_list(path)
+
+    def _load_episode_list(self, episode_list_path: str) -> Tuple[Dict[str, List[dict]], Dict[Tuple[int, int], dict]]:
+        """Load an episode list into (title_map, number_map).
+
+        title_map maps a normalized title to the LIST of episodes bearing that
+        title (duplicate titles - reruns, same-season repeats - are common), so
+        lookups can disambiguate rather than silently overwrite.
+
+        Tolerant of malformed rows: rows with unquoted commas in the title (a
+        very common defect in scraped lists) are reconstructed by treating the
+        first two columns as season/episode, the last column as the SxxExx code,
+        and *everything in between* as the title.
+        """
+        by_title: Dict[str, List[dict]] = {}
+        by_number: Dict[Tuple[int, int], dict] = {}
+        malformed = 0
         try:
-            with open(episode_list_path, 'r', encoding='utf-8') as f:
-                reader = csv.DictReader(f)
+            with open(episode_list_path, 'r', encoding='utf-8-sig', newline='') as f:
+                reader = csv.reader(f)
+                header = next(reader, None)
+                if not header:
+                    logging.warning(f"Episode list is empty: {episode_list_path}")
+                    return by_title, by_number
                 for row in reader:
-                    # Create normalized version of episode name for matching
-                    normalized_name = self._normalize_title(row['EpisodeName'])
-                    episode_map[normalized_name] = {
-                        'season': int(row['SeasonNumber']),
-                        'episode': int(row['EpisodeNumber']),
-                        'full_name': row['EpisodeName']
-                    }
+                    if not row or all(not c.strip() for c in row):
+                        continue
+                    parsed = self._parse_csv_row(row)
+                    if not parsed:
+                        malformed += 1
+                        continue
+                    season, episode, name = parsed
+                    if len(row) > 4:
+                        malformed += 1  # had unquoted commas; reconstructed
+                    info = {'season': season, 'episode': episode, 'full_name': name}
+                    # Key with the SAME transform used at lookup time so a clean
+                    # title matches regardless of release tags on either side.
+                    key = self._normalize_title(self._strip_tags(name))
+                    by_title.setdefault(key, []).append(info)
+                    by_number[(season, episode)] = info
         except Exception as e:
-            logging.error(f"Error loading episode list: {e}")
-            return {}
-        return episode_map
+            logging.error(f"Error loading episode list '{episode_list_path}': {e}")
+            return {}, {}
 
+        logging.info(f"Loaded {len(by_number)} episodes from {os.path.basename(episode_list_path)}"
+                     + (f" ({malformed} row(s) reconstructed/skipped)" if malformed else ""))
+        return by_title, by_number
+
+    @staticmethod
+    def _parse_csv_row(row: List[str]) -> Optional[Tuple[int, int, str]]:
+        """Return (season, episode, name) from a CSV row, reconstructing the
+        title if unquoted commas split it across extra columns."""
+        cells = [c.strip() for c in row]
+        if len(cells) < 3:
+            return None
+        try:
+            season = int(cells[0])
+            episode = int(cells[1])
+        except (ValueError, IndexError):
+            return None
+        if len(cells) == 3:
+            name = cells[2]
+        else:
+            # Columns 2..n: the title plus a trailing SxxExx code (AbbvCombo).
+            tail = cells[2:]
+            if re.fullmatch(r'S\d{1,2}E\d{1,3}', tail[-1], re.IGNORECASE):
+                tail = tail[:-1]
+            name = ", ".join(t for t in tail if t)
+        return (season, episode, name.strip()) if name.strip() else None
+
+    # -------------------------------------------------------- normalization
     def _normalize_title(self, title: str) -> str:
-        """Normalize title for matching by handling punctuation carefully"""
-        # Step 1: Preserve specific patterns we want to keep
-        # Common title abbreviations
-        preserved_patterns = {
-            r'Mr\.': 'Mr',
-            r'Mrs\.': 'Mrs',
-            r'Ms\.': 'Ms',
-            r'Dr\.': 'Dr',
-            r'Jr\.': 'Jr',
-            r'Sr\.': 'Sr',
-            r'St\.': 'St',
-            r'vs\.': 'vs',
-            # Handle ellipsis and other common punctuation patterns
-            r'\.\.\.': ' ',  # Replace ellipsis with space
-            r'\s*&\s*': ' and ',  # Replace & with 'and'
-            r'\s*\+\s*': ' and ',  # Replace + with 'and'
-            # Keep hyphenated words together
-            r'(\w)-(\w)': r'\1\2'  # Remove hyphens between words but keep words together
+        """Normalize a title for matching: fold accents, expand common symbols,
+        drop punctuation, collapse whitespace."""
+        # Fold accents/diacritics to ASCII so "à la Mode" == "a la Mode".
+        working = unicodedata.normalize('NFKD', title)
+        working = ''.join(c for c in working if not unicodedata.combining(c))
+
+        replacements = {
+            r'Mr\.': 'Mr', r'Mrs\.': 'Mrs', r'Ms\.': 'Ms', r'Dr\.': 'Dr',
+            r'Jr\.': 'Jr', r'Sr\.': 'Sr', r'St\.': 'St', r'vs\.': 'vs',
+            r'\.\.\.': ' ',
+            r'\s*&\s*': ' and ',
+            r'\s*\+\s*': ' and ',
+            r'\s*♥\s*': ' heart ',   # ♥
+            r'(\w)-(\w)': r'\1\2',
         }
-        
-        working_title = title
-        for pattern, replacement in preserved_patterns.items():
-            working_title = re.sub(pattern, replacement, working_title)
-        
-        # Convert to lowercase after preserving patterns
-        working_title = working_title.lower()
-        
-        # Remove any remaining punctuation
-        working_title = re.sub(r'[^\w\s]', '', working_title)
-        
-        # Clean up whitespace
-        working_title = re.sub(r'\s+', ' ', working_title).strip()
-        
-        return working_title
+        for pattern, repl in replacements.items():
+            working = re.sub(pattern, repl, working)
+
+        working = working.lower()
+        working = re.sub(r'[^\w\s]', '', working)
+        working = re.sub(r'\s+', ' ', working).strip()
+        return working
+
+    @staticmethod
+    def _strip_tags(text: str) -> str:
+        """Remove release/quality metadata and a trailing group tag."""
+        text = _TAG_PATTERN.sub(' ', text)
+        text = _GROUP_PATTERN.sub('', text)
+        return re.sub(r'\s+', ' ', text).strip()
 
     def _sanitize_filename(self, filename: str) -> str:
-        """Remove or replace invalid filename characters"""
-        # Handle special cases first
         filename = filename.replace('?', '')
-        # Replace other invalid characters with underscore
         return re.sub(r'[<>:"/\\|*]', '_', filename)
-    
-    def _get_episode_info(self, filename: str) -> Tuple[str, str, int, int]:
-        """Extract show name, season and episode info from filename"""
-        # Expected format: "Show Name - SXXEXX - Episode"
-        pattern = r'^(.+?)\s*-\s*S(\d+)E(\d+)(?:-\d+)?\s*-\s*(.+)$'
-        match = re.match(pattern, os.path.splitext(filename)[0])
-        if match:
-            show_name = match.group(1).strip()
-            season = int(match.group(2))
-            episode = int(match.group(3))
-            remainder = match.group(4).strip()
-            return show_name, season, episode, remainder
-        return None, None, None, None
 
-    def _get_episode_names(self, filename: str, show_name: str) -> Tuple[str, str]:
-        """Extract the episode names from the filename"""
-        # Remove quality indicators and file extension
-        clean_name = re.sub(r'WEBDL-\d+p|DVD|\.mkv|\.mp4', '', filename)
-        # Remove season/episode numbers and show name
-        show_name_pattern = re.escape(show_name)
-        clean_name = re.sub(rf'{show_name_pattern}\s*-\s*S\d+E\d+(-\d+)?\s*-\s*', '', clean_name)
-        
-        # Split by '+' and clean up
-        parts = [part.strip() for part in clean_name.split('+')]
-        if len(parts) == 2:
-            return parts[0], parts[1]
-        else:
-            return clean_name.strip(), None
+    # ----------------------------------------------------- filename parsing
+    def _get_episode_info(self, filename: str) -> Tuple[Optional[str], Optional[int], Optional[List[int]], Optional[str]]:
+        """Parse 'Show - SxxE.. - Title[+Title...]' from a filename.
 
-    def _find_matching_episode(self, episode_name: str) -> Optional[Dict]:
-        """Find matching episode in the episode map"""
-        normalized_name = self._normalize_title(episode_name)
-        logging.debug(f"\nDebug: Looking for match for '{episode_name}'")
-        logging.debug(f"Debug: Normalized name: '{normalized_name}'")
-        
-        # Remove 'DVD' or quality indicators from search
-        search_name = re.sub(r'\s*(DVD|WEBDL-\d+p)$', '', normalized_name)
-        logging.debug(f"Debug: Search name: '{search_name}'")
-        
-        # Direct match
-        if search_name in self.episode_map:
-            logging.debug(f"Debug: Found direct match")
-            return self.episode_map[search_name]
-        
-        # Fuzzy match if needed
-        try:
-            best_match = None
-            best_ratio = 0
-            
-            logging.debug("\nDebug: Attempting fuzzy matches:")
-            matches = []
-            for name, info in self.episode_map.items():
-                ratio = SequenceMatcher(None, search_name, name).ratio()
-                matches.append((name, ratio, info))
-            
-            # Sort by ratio and print top 3
-            matches.sort(key=lambda x: x[1], reverse=True)
-            for name, ratio, info in matches[:3]:
-                logging.debug(f"Debug: '{name}' - confidence: {ratio:.2f}")
-                if ratio > 0.75 and ratio > best_ratio:  # Adjust threshold as needed
-                    best_ratio = ratio
-                    best_match = info
-            
-            if best_match:
-                logging.debug(f"Debug: Selected match: '{best_match['full_name']}' with confidence {best_ratio:.2f}")
-            else:
-                logging.debug(f"Debug: No match found above 0.75 confidence threshold")
-                
-            return best_match
-        except Exception as e:
-            logging.error(f"Error during fuzzy matching: {e}")
+        Accepts multi-episode encodings: S01E15-16, S01E15-E16, S01E01E02.
+        Returns (show_name, season, [episode_numbers], remainder).
+        """
+        stem = os.path.splitext(filename)[0]
+        # show - S<season>E<ep>[range/extra eps] - <remainder>
+        pattern = (r'^(?P<show>.+?)\s*-\s*'
+                   r'S(?P<season>\d{1,2})'
+                   r'E(?P<ep>\d{1,3})'
+                   r'(?P<extra>(?:\s*-\s*E?\d{1,3}|E\d{1,3})*)'
+                   r'\s*-\s*(?P<rest>.+)$')
+        match = re.match(pattern, stem, re.IGNORECASE)
+        if not match:
+            return None, None, None, None
+        show = match.group('show').strip()
+        season = int(match.group('season'))
+        episodes = [int(match.group('ep'))]
+        for extra in re.findall(r'\d{1,3}', match.group('extra') or ''):
+            episodes.append(int(extra))
+        remainder = match.group('rest').strip()
+        return show, season, episodes, remainder
+
+    def _split_segments(self, remainder: str, season: Optional[int]) -> List[str]:
+        """Split the title remainder into per-episode titles.
+
+        CSV-guided: a separator is only accepted when *every* resulting part
+        matches an episode in the map (so 'Arnold & Lila' stays one title but
+        'Dog Gone & All You Cant Eat' splits correctly). Falls back to a plain
+        '+' split, then to a single title.
+        """
+        remainder = self._strip_tags(remainder)
+
+        best: Optional[List[str]] = None
+        for sep in _SEGMENT_SEPARATORS:
+            if sep not in remainder:
+                continue
+            parts = [p.strip() for p in remainder.split(sep) if p.strip()]
+            if len(parts) < 2:
+                continue
+            if self.episode_map and all(self._find_matching_episode(p, season) for p in parts):
+                if best is None or len(parts) > len(best):
+                    best = parts
+        if best:
+            return best
+
+        # Fallback: literal '+' (the repo's historical convention).
+        if '+' in remainder:
+            parts = [p.strip() for p in remainder.split('+') if p.strip()]
+            if len(parts) >= 2:
+                return parts
+        return [remainder.strip()] if remainder.strip() else []
+
+    @staticmethod
+    def _pick_from(cands: List[dict], season: Optional[int],
+                   number: Optional[int]) -> Optional[dict]:
+        """Disambiguate when a title matches several episodes: prefer the
+        filename's (season, number), then the same season, then the first."""
+        if not cands:
+            return None
+        if len(cands) == 1:
+            return cands[0]
+        if season is not None and number is not None:
+            for c in cands:
+                if c['season'] == season and c['episode'] == number:
+                    return c
+        if season is not None:
+            same = [c for c in cands if c['season'] == season]
+            if same:
+                return same[0]
+        return cands[0]
+
+    def _find_matching_episode(self, episode_name: str,
+                               season: Optional[int] = None,
+                               number: Optional[int] = None) -> Optional[dict]:
+        """Find the episode that best matches a title.
+
+        Prefers an exact normalized match, then a season-scoped fuzzy match that
+        clears 0.75 AND beats the runner-up by a margin. Duplicate titles are
+        disambiguated via (season, number) - see _pick_from.
+        """
+        if not episode_name:
+            return None
+        search = self._normalize_title(self._strip_tags(episode_name))
+        if not search:
             return None
 
-    def _get_next_episode(self, current_episode: str) -> Optional[Dict]:
-        current_info = self._find_matching_episode(current_episode)
-        if current_info:
-            next_episode_num = current_info['episode'] + 1
-            # Look for episode with this number in the same season
-            for name, info in self.episode_map.items():
-                if info['season'] == current_info['season'] and info['episode'] == next_episode_num:
-                    return info
-        return None
+        # Exact normalized match (season-scoped first).
+        cands = self.episode_map.get(search)
+        if cands:
+            scoped = [c for c in cands if season is None or c['season'] == season]
+            return self._pick_from(scoped or cands, season, number)
 
-    def _get_ffmpeg_path(self) -> str:
-        """Get path to ffmpeg executable from local bin directory"""
-        return self._get_binary_path('ffmpeg')
+        # Fuzzy match: return the best key clearing the threshold + margin.
+        def best_key(keys):
+            scored = sorted(((SequenceMatcher(None, search, k).ratio(), k) for k in keys),
+                            key=lambda x: x[0], reverse=True)
+            if not scored:
+                return None
+            top_ratio, top_key = scored[0]
+            second = scored[1][0] if len(scored) > 1 else 0.0
+            if top_ratio >= 0.90 or (top_ratio > 0.75 and (top_ratio - second) >= 0.03):
+                return top_key
+            return None
 
-    def _get_ffprobe_path(self) -> str:
-        """Get path to ffprobe executable from local bin directory"""
-        return self._get_binary_path('ffprobe')
+        if season is not None:
+            scoped_keys = [k for k, lst in self.episode_map.items()
+                           if any(i['season'] == season for i in lst)]
+            k = best_key(scoped_keys)
+            if k:
+                same = [c for c in self.episode_map[k] if c['season'] == season]
+                return self._pick_from(same or self.episode_map[k], season, number)
+        k = best_key(list(self.episode_map.keys()))
+        return self._pick_from(self.episode_map[k], season, number) if k else None
 
-    def _get_mkvmerge_path(self) -> str:
-        """Get path to mkvmerge executable from local bin directory"""
-        return self._get_binary_path('mkvmerge')
+    def _lookup_episode(self, season: int, number: int,
+                        title: Optional[str]) -> Optional[dict]:
+        """Resolve a segment to its authoritative episode entry.
 
-    def _get_binary_path(self, binary_name: str) -> str:
-        """Get path to binary executable from local bin directory, handling different platforms"""
-        system = platform.system().lower()
-        binary_ext = ''
-        if system == 'windows':
-            binary_ext = '.exe'
-        bin_dir = os.path.join(os.path.dirname(__file__), 'bin')
-        binary_path = os.path.join(bin_dir, binary_name + binary_ext)
-        if os.path.exists(binary_path):
-            return binary_path
-        raise FileNotFoundError(f"{binary_name} executable not found in local 'bin' directory.")
+        The TITLE is authoritative here: this tool exists to *correct* episode
+        numbering, and source filenames routinely carry the wrong number (e.g. a
+        file named 'S01E17-18 - Fool On the Ed + A Boy and His Ed' whose titles
+        are actually S01E15/E16 in the list). So match by title first (using the
+        filename number only to disambiguate duplicate titles), and fall back to
+        the filename's (season, number) when no title matches.
+        """
+        if title:
+            info = self._find_matching_episode(title, season, number)
+            if info:
+                return info
+        return self._episode_by_number.get((season, number))
 
+    # ------------------------------------------------------------ time utils
     def _time_to_seconds(self, time_str: str) -> float:
-        """Convert timestamp string (HH:MM:SS.mmm) to seconds"""
         h, m, s = time_str.split(':')
         return float(h) * 3600 + float(m) * 60 + float(s)
 
     def _seconds_to_time(self, seconds: float) -> str:
-        """Convert seconds to timestamp string (HH:MM:SS.mmm)"""
+        seconds = max(0.0, float(seconds))
         h = int(seconds // 3600)
         m = int((seconds % 3600) // 60)
         s = seconds % 60
         return f"{h:02d}:{m:02d}:{s:06.3f}"
 
     def get_video_duration(self, video_path: str) -> Optional[float]:
-        """Get video duration using ffprobe"""
         try:
-            cmd = [
-                self.ffprobe_path,
-                "-v", "quiet",
-                "-print_format", "json",
-                "-show_format",
-                "-show_streams",
-                str(Path(video_path).resolve())
-            ]
-            
+            cmd = [self.ffprobe_path, "-v", "quiet", "-print_format", "json",
+                   "-show_format", str(Path(video_path).resolve())]
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                logging.error(f"FFprobe error: {result.stderr}")
+                logging.error(f"ffprobe error: {result.stderr}")
                 return None
-                
-            data = json.loads(result.stdout)
-            return float(data['format']['duration'])
-            
+            return float(json.loads(result.stdout)['format']['duration'])
         except Exception as e:
             logging.error(f"Error getting video duration: {e}")
             return None
 
-    def detect_black_frames(self, video_path: str) -> List[Tuple[float, float]]:
-        """Use FFmpeg to detect black frames/scenes"""
-        logging.info("\nAnalyzing video for black frames...")
-        
-        cmd = [
-            self.ffmpeg_path,
-            "-i", str(Path(video_path).resolve()),
-            "-vf", "blackdetect=d=0.2:pix_th=0.15:pic_th=0.95",
-            "-an",
-            "-f", "null",
-            "-"
-        ]
-
+    # --------------------------------------------------------- detection
+    def _run_blackdetect(self, video_path: str,
+                         d: str, pix: str, pic: str) -> List[Tuple[float, float, float]]:
+        """Return all (start, end, duration) black intervals in the whole file."""
+        cmd = [self.ffmpeg_path, "-i", str(Path(video_path).resolve()),
+               "-vf", f"blackdetect=d={d}:pix_th={pix}:pic_th={pic}",
+               "-an", "-f", "null", "-"]
+        blacks: List[Tuple[float, float, float]] = []
         try:
-            logging.info("Running black frame detection...")
             result = subprocess.run(cmd, capture_output=True, text=True)
-            logging.info("\nProcessing detection results...")
-            
-            black_frames = []
-            for line in result.stderr.split('\n'):
-                if "black_start:" in line:
-                    logging.info(f"Found line: {line}")
-                    try:
-                        start = float(line.split("black_start:")[1].split()[0])
-                        end = float(line.split("black_end:")[1].split()[0])
-                        duration = float(line.split("black_duration:")[1].split()[0])
-                        
-                        if 0.2 <= duration <= 4.0:
-                            black_frames.append((start, end, duration))
-                            logging.info(f"Found black frame: {self._seconds_to_time(start)} - {self._seconds_to_time(end)} "
-                                       f"(duration: {duration:.2f}s)")
-                    except Exception as e:
-                        logging.error(f"Error parsing line: {e}")
-                        continue
-
-            logging.info(f"\nFound {len(black_frames)} potential transitions")
-            
-            target_time = 710  # 11:50 in seconds
-            margin = 60  # ±60 seconds
-
-            time_filtered = []
-            for start, end, duration in black_frames:
-                if abs(start - target_time) <= margin:
-                    time_filtered.append((start, end, duration))
-                    logging.info(f"Found transition near target time: {self._seconds_to_time(start)} - "
-                               f"{self._seconds_to_time(end)} (duration: {duration:.2f}s)")
-
-            if time_filtered:
-                logging.info(f"Found {len(time_filtered)} transitions near target time")
-                
-                def score_transition(transition):
-                    start, end, duration = transition
-                    time_score = abs(start - target_time) / margin
-                    if 0.5 <= duration <= 2.0:
-                        duration_score = 0
-                    else:
-                        duration_score = min(abs(duration - 0.5), abs(duration - 2.0))
-                    
-                    isolation_score = 0
-                    for other_start, _, _ in black_frames:
-                        if other_start != start:
-                            distance = abs(start - other_start)
-                            if distance < 5:
-                                isolation_score += 1
-                    
-                    total_score = time_score + duration_score + (isolation_score * 0.5)
-                    logging.info(f"Transition at {self._seconds_to_time(start)} scored: {total_score:.2f}")
-                    logging.info(f"  Time score: {time_score:.2f}")
-                    logging.info(f"  Duration score: {duration_score:.2f}")
-                    logging.info(f"  Isolation score: {isolation_score:.2f}")
-                    
-                    return total_score
-                
-                best_transition = min(time_filtered, key=score_transition)
-                logging.info(f"\nSelected transition at {self._seconds_to_time(best_transition[0])} "
-                           f"(duration: {best_transition[2]:.2f}s)")
-                
-                return [(best_transition[0], best_transition[1])]
-            
-            return []
-
-        except subprocess.CalledProcessError as e:
-            logging.error(f"FFmpeg error: {e}")
-            if e.stderr:
-                logging.error("Error output:", e.stderr)
-            return []
         except Exception as e:
-            logging.error(f"Unexpected error: {e}")
+            self._progress(f"blackdetect failed: {e}")
+            return blacks
+        for line in result.stderr.split('\n'):
+            if "black_start:" in line:
+                try:
+                    start = float(line.split("black_start:")[1].split()[0])
+                    end = float(line.split("black_end:")[1].split()[0])
+                    dur = float(line.split("black_duration:")[1].split()[0])
+                    blacks.append((start, end, dur))
+                except (IndexError, ValueError):
+                    continue
+        return blacks
+
+    def _detect_black_intervals(self, video_path: str,
+                                targets: Optional[List[float]] = None) -> List[Tuple[float, float, float]]:
+        """Blackdetect with a threshold ladder. Relaxes settings until a black
+        interval lands within time_margin of a target (not merely until *some*
+        black is found - unrelated act breaks must not stop the ladder)."""
+        ladder = [
+            (self.black_duration, self.pixel_threshold, self.picture_threshold),
+            ("0.1", "0.20", "0.92"),
+            ("0.05", "0.30", "0.85"),
+        ]
+        best: List[Tuple[float, float, float]] = []
+        seen = set()
+        for i, (d, pix, pic) in enumerate(ladder):
+            if (d, pix, pic) in seen:
+                continue
+            seen.add((d, pix, pic))
+            blacks = self._run_blackdetect(video_path, d, pix, pic)
+            if not blacks:
+                continue
+            best = blacks
+            in_window = targets is None or any(
+                any(abs(b[0] - t) <= self.time_margin for b in blacks) for t in targets)
+            if in_window:
+                if i > 0:
+                    self._progress(f"  (used relaxed thresholds d={d} pix={pix} pic={pic})")
+                return blacks
+        return best
+
+    def _expected_boundaries(self, duration: float, num_segments: int) -> List[float]:
+        """Expected boundary time(s). For an N-segment file the shared intro is
+        only at the very start, so body length = (duration - intro)/N and the
+        j-th boundary is intro + j*body_len."""
+        if self.auto_target or num_segments != 2:
+            body = max(1.0, (duration - self.INTRO_DURATION) / num_segments)
+            return [self.INTRO_DURATION + j * body for j in range(1, num_segments)]
+        # Legacy explicit target (two-segment only).
+        return [self.target_time]
+
+    def _pick_candidate(self, blacks: List[Tuple[float, float, float]],
+                        target: float, allow_hard_cut: bool = False) -> Optional[Tuple[float, float, float]]:
+        """Choose the best black interval near `target`.
+
+        Zero-duration entries are hard cuts (from scene-change detection) and are
+        NOT treated as real inter-episode fades unless allow_hard_cut is set, so
+        dense hard cuts can never silently masquerade as a boundary.
+        """
+        window = [b for b in blacks if abs(b[0] - target) <= self.time_margin]
+        if not allow_hard_cut:
+            window = [b for b in window if b[2] > 0.0]
+        if not window:
+            return None
+
+        if self.transition_selection == "Select Earliest Transition":
+            return min(window, key=lambda b: b[0])
+        if self.transition_selection == "Select Latest Transition":
+            return max(window, key=lambda b: b[0])
+
+        # Smart: prefer long fades close to the target. Duration dominates,
+        # proximity breaks ties. (cap keeps end-credits fades from dominating.)
+        margin = max(self.time_margin, 1.0)
+        def score(b):
+            start, _end, dur = b
+            return min(dur, 8.0) - 1.5 * (abs(start - target) / margin)
+        return max(window, key=score)
+
+    def detect_boundaries(self, video_path: str, duration: float,
+                          num_segments: int = 2) -> List[Tuple[float, float, float]]:
+        """Detect the num_segments-1 inter-episode boundaries.
+
+        Comprehensive tries blackdetect (threshold ladder) then a luminance
+        fallback for faint fades. If no real fade is found near a target it
+        returns fewer boundaries than requested, so the caller's
+        on_detection_failure policy (copy/midpoint/skip) takes over rather than
+        splitting at an arbitrary point. Scene-change (hard-cut) detection is
+        only used when explicitly selected.
+        """
+        if num_segments < 2:
+            return []
+        self._progress("Analyzing video for episode transitions...")
+
+        method = self.detection_method
+        targets = self._expected_boundaries(duration, num_segments)
+
+        if method == "Histogram Analysis":
+            chosen = self._choose_boundaries(self._detect_via_histogram(video_path, duration), targets)
+        elif method == "Scene Change Detection":
+            cuts = self._detect_via_scene_change(video_path, duration)
+            chosen = self._choose_boundaries(cuts, targets, allow_hard_cut=True)
+        else:  # Standard Blackdetect Only / Comprehensive
+            blacks = self._detect_black_intervals(video_path, targets)
+            chosen = self._choose_boundaries(blacks, targets)
+            if len(chosen) < len(targets) and method == "Comprehensive (All Methods)":
+                self._progress("No clean fade near a boundary; trying luminance analysis...")
+                hist = self._detect_via_histogram(video_path, duration)
+                chosen = self._choose_boundaries(blacks + hist, targets)
+
+        for b in chosen:
+            kind = "hard cut" if b[2] <= 0.0 else f"fade {b[2]:.2f}s"
+            self._progress(f"  Boundary at {self._seconds_to_time(b[0])} ({kind})")
+        return chosen
+
+    def _choose_boundaries(self, blacks: List[Tuple[float, float, float]],
+                           targets: List[float],
+                           allow_hard_cut: bool = False) -> List[Tuple[float, float, float]]:
+        """Pick one distinct candidate per expected boundary target."""
+        chosen: List[Tuple[float, float, float]] = []
+        used: set = set()
+        for target in targets:
+            pick = self._pick_candidate(
+                [b for b in blacks if b[0] not in used], target, allow_hard_cut)
+            if pick:
+                used.add(pick[0])
+                chosen.append(pick)
+        chosen.sort(key=lambda b: b[0])
+        return chosen
+
+    def _detect_via_histogram(self, video_path: str,
+                              duration: float) -> List[Tuple[float, float, float]]:
+        """Luminance-based black detection (fallback for faint fades).
+
+        Uses signalstats+metadata=print and parses lavfi.signalstats.YAVG.
+        """
+        self._progress("Running luminance (signalstats) analysis...")
+        fps = 10
+        cmd = [self.ffmpeg_path, "-i", str(Path(video_path).resolve()),
+               "-vf", f"fps={fps},signalstats,metadata=print", "-f", "null", "-"]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except Exception as e:
+            self._progress(f"Luminance analysis failed: {e}")
             return []
 
-    def split_video(self, video_path: str, segments: List[Tuple[str, str]]) -> None:
-        video_name = os.path.splitext(os.path.basename(video_path))[0]
+        blacks: List[Tuple[float, float, float]] = []
+        black_start: Optional[float] = None
+        cur_time = 0.0
+        min_dur = float(self.black_duration or 0.2)
+        for line in result.stderr.split('\n'):
+            tmatch = re.search(r'pts_time:(\d+\.?\d*)', line)
+            if tmatch:
+                cur_time = float(tmatch.group(1))
+                continue
+            ymatch = re.search(r'lavfi\.signalstats\.YAVG=(\d+\.?\d*)', line)
+            if ymatch:
+                yavg = float(ymatch.group(1))
+                if yavg < 16:  # near-black (0-255 scale)
+                    if black_start is None:
+                        black_start = cur_time
+                elif black_start is not None:
+                    dur = cur_time - black_start
+                    if dur >= min_dur:
+                        blacks.append((black_start, cur_time, dur))
+                    black_start = None
+        if black_start is not None:
+            dur = cur_time - black_start
+            if dur >= min_dur:
+                blacks.append((black_start, cur_time, dur))
+        return blacks
+
+    def _detect_via_scene_change(self, video_path: str,
+                                 duration: float) -> List[Tuple[float, float, float]]:
+        """Scene-change detection for hard cuts (no fade). Kept as candidates
+        regardless of adjacent blackness."""
+        self._progress("Running scene-change detection...")
+        cmd = [self.ffmpeg_path, "-i", str(Path(video_path).resolve()),
+               "-vf", "select='gt(scene,0.4)',metadata=print", "-f", "null", "-"]
+        try:
+            result = subprocess.run(cmd, capture_output=True, text=True)
+        except Exception as e:
+            self._progress(f"Scene-change detection failed: {e}")
+            return []
+        cuts: List[Tuple[float, float, float]] = []
+        for line in result.stderr.split('\n'):
+            tmatch = re.search(r'pts_time:(\d+\.?\d*)', line)
+            if tmatch:
+                t = float(tmatch.group(1))
+                # A hard cut has no measurable fade; treat as a zero-length mark.
+                cuts.append((t, t, 0.0))
+        return cuts
+
+    # --------------------------------------------------------- splitting
+    def _extract_part(self, video_path: str, start: str, end: str, out_file: str) -> bool:
+        """Extract [start, end] into out_file with mkvmerge (no re-encode)."""
+        cmd = [self.mkvmerge_path, "--output", str(Path(out_file).resolve()),
+               "--split", f"parts:{start}-{end}", str(Path(video_path).resolve())]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode not in (0, 1):  # 1 = warnings, output still made
+            logging.error(f"mkvmerge error: {result.stderr}")
+            return False
+        return self._resolve_split_output(out_file) is not None
+
+    @staticmethod
+    def _resolve_split_output(out_file: str) -> Optional[str]:
+        """mkvmerge may name a single-part output exactly, or suffix it -001."""
+        p = Path(out_file)
+        if p.exists():
+            return str(p)
+        numbered = p.with_name(f"{p.stem}-001{p.suffix}")
+        return str(numbered) if numbered.exists() else None
+
+    def _unique_output(self, output_file: str) -> str:
+        """Avoid silently overwriting an existing output file."""
+        if not os.path.exists(output_file):
+            return output_file
+        base, ext = os.path.splitext(output_file)
+        i = 2
+        while os.path.exists(f"{base} ({i}){ext}"):
+            i += 1
+        return f"{base} ({i}){ext}"
+
+    def split_video(self, video_path: str,
+                    segments: List[Tuple[float, float, dict, bool]]) -> int:
+        """Write each segment. `segments` = list of
+        (start_sec, end_sec, episode_info_or_None, prepend_intro). Returns the
+        number of segments written."""
         input_ext = os.path.splitext(video_path)[1].lower()
-        
-        # Extract show info and episode names first
-        show_name, season, base_episode, _ = self._get_episode_info(video_name)
-        if not all([show_name, season, base_episode]):
-            logging.error(f"Could not parse show information from filename: {video_name}")
-            return
-        
-        first_episode, second_episode = self._get_episode_names(video_name, show_name)
-        
-        # Look up both episodes in CSV before starting
-        first_episode_info = self._find_matching_episode(first_episode)
-        second_episode_info = self._find_matching_episode(second_episode) if second_episode else None
-        
-        for i, (start, end) in enumerate(segments, 1):
-            if i == 1:
-                episode_info = first_episode_info
-                episode_name = first_episode
-                include_intro = False  # Intro is already included in the first episode
-            else:
-                episode_info = second_episode_info
-                episode_name = second_episode
-                include_intro = True  # We want to include the intro in the second episode
-                    
-            if episode_info:
-                output_name = f"{show_name} - S{season:02d}E{episode_info['episode']:02d} - {episode_info['full_name']}{input_ext}"
-            else:
-                # Fallback if episode not found in CSV
-                output_name = f"{show_name} - S{season:02d}E{base_episode + i - 1:02d} - {episode_name}{input_ext}"
-                
-            output_file = os.path.join(self.output_folder, self._sanitize_filename(output_name))
-            
-            # Convert times to the format HH:MM:SS.nnn
-            start_time = self._seconds_to_time(self._time_to_seconds(start))
-            end_time = self._seconds_to_time(self._time_to_seconds(end))
-            
-            temp_output_file = os.path.join(self.temp_folder, f"temp_episode_{i}.mkv")
-            
-            if include_intro:
-                # For episodes where we need to include the intro
-                intro_start = "00:00:00.000"
-                intro_end = self._seconds_to_time(self.INTRO_DURATION)
-                temp_intro_file = os.path.join(self.temp_folder, f"temp_intro_{i}.mkv")
-                
-                # Extract the intro
-                intro_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_intro_file).resolve()),
-                    "--split", f"parts:{intro_start}-{intro_end}",
-                    str(Path(video_path).resolve())
-                ]
-                # Extract the episode content
-                temp_episode_content_file = os.path.join(self.temp_folder, f"temp_episode_content_{i}.mkv")
-                content_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_episode_content_file).resolve()),
-                    "--split", f"parts:{start_time}-{end_time}",
-                    str(Path(video_path).resolve())
-                ]
-                # Run commands
-                try:
-                    # Extract intro
-                    result = subprocess.run(intro_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error extracting intro for episode {i}: {result.stderr}")
-                        continue
-                    # Extract episode content
-                    result = subprocess.run(content_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error extracting content for episode {i}: {result.stderr}")
-                        continue
-                    # Concatenate intro and content
-                    concat_cmd = [
-                        self.mkvmerge_path,
-                        "--output", str(Path(temp_output_file).resolve()),
-                        str(Path(temp_intro_file).resolve()), '+', str(Path(temp_episode_content_file).resolve())
-                    ]
-                    result = subprocess.run(concat_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error concatenating intro and content for episode {i}: {result.stderr}")
-                        continue
-                    else:
-                        logging.debug(f"mkvmerge output:\n{result.stdout}")
-                        logging.info(f"Successfully created episode {i} with intro using mkvmerge")
-                    # Move the output file to the desired location
-                    if os.path.exists(temp_output_file):
-                        shutil.move(temp_output_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    else:
-                        logging.error(f"Episode {i} output file not found.")
-                except Exception as e:
-                    logging.error(f"Unexpected error during processing of episode {i}: {e}")
-            else:
-                # For episodes where we don't need to include the intro
-                # Use mkvmerge for precise splitting without re-encoding
-                split_cmd = [
-                    self.mkvmerge_path,
-                    "--output", str(Path(temp_output_file).resolve()),
-                    "--split", f"parts:{start_time}-{end_time}",
-                    str(Path(video_path).resolve())
-                ]
-                try:
-                    result = subprocess.run(split_cmd, capture_output=True, text=True)
-                    if result.returncode != 0:
-                        logging.error(f"Error creating episode {i} with mkvmerge: {result.stderr}")
-                        continue
-                    else:
-                        logging.debug(f"mkvmerge output:\n{result.stdout}")
-                        logging.info(f"Successfully created episode {i} using mkvmerge")
-                    # Move the output file to the desired location
-                    if os.path.exists(temp_output_file):
-                        shutil.move(temp_output_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    elif os.path.exists(temp_output_file.replace('.mkv', '-001.mkv')):
-                        numbered_temp_file = temp_output_file.replace('.mkv', '-001.mkv')
-                        shutil.move(numbered_temp_file, output_file)
-                        logging.info(f"Episode {i} saved as {output_file}")
-                    else:
-                        logging.error(f"Episode {i} output file not found.")
-                except Exception as e:
-                    logging.error(f"Unexpected error during processing of episode {i}: {e}")
-        
-        # Clean up temp folder
-        shutil.rmtree(self.temp_folder, ignore_errors=True)
+        if input_ext not in ('.mkv',):
+            input_ext = '.mkv'  # mkvmerge always outputs matroska
+        show_name = self._current_show or "Show"
+        season = self._current_season or 1
+        written = 0
 
+        for i, (start, end, info, prepend_intro) in enumerate(segments, 1):
+            if self.cancel_requested:
+                break
+            if info:
+                out_name = (f"{show_name} - S{info['season']:02d}E{info['episode']:02d} "
+                            f"- {info['full_name']}{input_ext}")
+            else:
+                ep_num = (self._current_episodes[i - 1]
+                          if self._current_episodes and i - 1 < len(self._current_episodes)
+                          else i)
+                out_name = f"{show_name} - S{season:02d}E{ep_num:02d} - Part {i}{input_ext}"
+            output_file = self._unique_output(
+                os.path.join(self.output_folder, self._sanitize_filename(out_name)))
+
+            start_s = self._seconds_to_time(start)
+            end_s = self._seconds_to_time(end)
+            temp_out = os.path.join(self.temp_folder, f"seg_{i}.mkv")
+
+            if prepend_intro and self.INTRO_DURATION > 0:
+                intro_file = os.path.join(self.temp_folder, f"intro_{i}.mkv")
+                body_file = os.path.join(self.temp_folder, f"body_{i}.mkv")
+                if not self._extract_part(video_path, "00:00:00.000",
+                                          self._seconds_to_time(self.INTRO_DURATION), intro_file):
+                    logging.error(f"Segment {i}: failed to extract intro."); continue
+                if not self._extract_part(video_path, start_s, end_s, body_file):
+                    logging.error(f"Segment {i}: failed to extract body."); continue
+                concat = [self.mkvmerge_path, "--output", str(Path(temp_out).resolve()),
+                          str(Path(self._resolve_split_output(intro_file)).resolve()),
+                          '+', str(Path(self._resolve_split_output(body_file)).resolve())]
+                res = subprocess.run(concat, capture_output=True, text=True)
+                if res.returncode not in (0, 1):
+                    logging.error(f"Segment {i}: concat failed: {res.stderr}"); continue
+            else:
+                if not self._extract_part(video_path, start_s, end_s, temp_out):
+                    logging.error(f"Segment {i}: extraction failed."); continue
+
+            produced = self._resolve_split_output(temp_out)
+            if not produced:
+                logging.error(f"Segment {i}: output not produced."); continue
+            shutil.move(produced, output_file)
+            self._progress(f"Saved: {os.path.basename(output_file)}")
+            written += 1
+        return written
+
+    # ------------------------------------------------------------- orchestrate
     def process_videos(self) -> None:
-        """Process all videos in the input folder"""
-        videos_found = False
-        for file in os.listdir(self.input_folder):
-            if file.lower().endswith(self.SUPPORTED_FORMATS):
-                videos_found = True
-                video_path = os.path.join(self.input_folder, file)
-                logging.info(f"\nProcessing: {file}")
-                
-                # Create a new temporary folder for each video file
-                self.temp_folder = tempfile.mkdtemp()
-                logging.info(f"Created temporary folder: {self.temp_folder}")
+        try:
+            files = sorted(f for f in os.listdir(self.input_folder)
+                           if f.lower().endswith(self.SUPPORTED_FORMATS))
+        except FileNotFoundError:
+            self._progress(f"Input folder not found: {self.input_folder}")
+            return
+        if not files:
+            self._progress(f"No supported video files found in {self.input_folder}. "
+                           f"Supported: {', '.join(self.SUPPORTED_FORMATS)}")
+            return
 
-                # Convert to MKV if not already in MKV format
-                if not file.lower().endswith('.mkv'):
-                    mkv_video_path = os.path.join(self.temp_folder, os.path.splitext(file)[0] + '.mkv')
-                    if not self.convert_to_mkv(video_path, mkv_video_path):
-                        continue  # Skip this file if conversion fails
-                    video_path = mkv_video_path  # Use the converted MKV file for further processing
-                    logging.info(f"Converted {file} to MKV format for processing.")
+        total = len(files)
+        for index, file in enumerate(files):
+            if self.cancel_requested:
+                break
+            self._progress(f"\n--- Processing {index + 1}/{total}: {file} ---",
+                           (index / total) * 100)
+            self.temp_folder = tempfile.mkdtemp(prefix="sss_")
+            try:
+                self._process_one(file)
+            except Exception as e:
+                logging.error(f"Error processing {file}: {e}", exc_info=True)
+            finally:
+                shutil.rmtree(self.temp_folder, ignore_errors=True)
+                self.temp_folder = None
 
-                # Get show info and episode names
-                show_name, season, episode, _ = self._get_episode_info(file)
-                if not all([show_name, season, episode]):
-                    logging.error(f"Could not parse show information from filename: {file}")
-                    continue
+        status = "Processing stopped." if self.cancel_requested else "All videos processed!"
+        self._progress(status, 100)
 
-                first_episode, second_episode = self._get_episode_names(file, show_name)
-                
-                # Check if this is a single-episode file
-                if second_episode is None:
-                    episode_info = self._find_matching_episode(first_episode)
-                    if episode_info:
-                        output_name = f"{show_name} - S{season:02d}E{episode:02d} - {episode_info['full_name']}{os.path.splitext(file)[1]}"
-                        output_file = os.path.join(self.output_folder, self._sanitize_filename(output_name))
-                        logging.info(f"\nSingle episode file detected: {first_episode}")
-                        logging.info(f"Copying directly to output: {output_name}")
-                        shutil.copy2(video_path, output_file)
-                    
-                    # Clean up temp folder and continue to next file
-                    if os.path.exists(self.temp_folder):
-                        shutil.rmtree(self.temp_folder)
-                    continue
-                    
-                # For two-segment episodes, proceed with normal processing
-                duration = self.get_video_duration(video_path)
-                if duration:
-                    logging.info(f"Video duration: {duration:.2f} seconds ({duration/60:.2f} minutes)")
-                    
-                    transitions = self.detect_black_frames(video_path)
-                    if transitions:
-                        episode1_start = "00:00:00.000"
-                        episode1_end = self._seconds_to_time(transitions[0][0])
-                        episode2_start = self._seconds_to_time(transitions[0][0])
-                        episode2_end = self._seconds_to_time(duration)
-                        
-                        boundaries = [(episode1_start, episode1_end), (episode2_start, episode2_end)]
-                        
-                        ep1_length = transitions[0][0]
-                        ep2_length = duration - transitions[0][1]
-                        logging.info(f"\nEpisode 1: {episode1_start} to {episode1_end} ({ep1_length/60:.2f} minutes)")
-                        logging.info(f"Episode 2: {episode2_start} to {episode2_end} ({ep2_length/60:.2f} minutes)")
-                        
-                        logging.info(f"Splitting video...")
-                        self.split_video(video_path, boundaries)
-                        logging.info(f"Video splitting completed.")
-                    else:
-                        logging.info("No valid transitions found")
-                else:
-                    logging.info("Could not determine video duration")
-                
-                # Clean up the temporary folder after processing each video
-                logging.info(f"Cleaning up temporary folder: {self.temp_folder}")
-                if os.path.exists(self.temp_folder):
-                    shutil.rmtree(self.temp_folder)
-                else:
-                    logging.info(f"Temporary folder {self.temp_folder} not found. Skipping cleanup.")
-        
-        if not videos_found:
-            logging.info(f"\nNo supported video files found in {self.input_folder}")
-            logging.info(f"Supported formats: {', '.join(self.SUPPORTED_FORMATS)}")
+    def _process_one(self, file: str) -> None:
+        src_path = os.path.join(self.input_folder, file)
+        show_name, season, episodes, remainder = self._get_episode_info(file)
+        if not show_name or season is None:
+            self._progress(f"WARNING: Could not parse 'Show - SxxExx - Title' from "
+                           f"'{file}'. Skipping.")
+            return
+
+        titles = self._split_segments(remainder, season)
+        num_segments = max(len(titles), len(episodes)) if (titles or episodes) else 1
+
+        self._current_show = show_name
+        self._current_season = season
+        self._current_episodes = episodes
+
+        # Single-episode file: copy through, named from the CSV when matched.
+        # (No remux needed - a straight copy preserves the original container.)
+        if num_segments < 2:
+            title = titles[0] if titles else remainder
+            info = self._lookup_episode(season, episodes[0], title)
+            if info:
+                out_name = (f"{show_name} - S{season:02d}E{info['episode']:02d} "
+                            f"- {info['full_name']}{os.path.splitext(file)[1]}")
+            else:
+                self._progress(f"NOTE: No episode-list match for '{title}'; "
+                               f"copying with original name.")
+                out_name = file
+            dest = self._unique_output(
+                os.path.join(self.output_folder, self._sanitize_filename(out_name)))
+            shutil.copy2(src_path, dest)
+            self._progress(f"Single episode -> {os.path.basename(dest)}")
+            return
+
+        # Multi-episode: convert to MKV (copy, no re-encode) so mkvmerge can
+        # split precisely. Only done for files that will actually be split.
+        video_path = src_path
+        if not file.lower().endswith('.mkv'):
+            mkv_path = os.path.join(self.temp_folder, os.path.splitext(file)[0] + '.mkv')
+            if not self.convert_to_mkv(src_path, mkv_path):
+                self._progress(f"WARNING: Could not convert {file} to MKV. Skipping.")
+                return
+            video_path = mkv_path
+
+        duration = self.get_video_duration(video_path)
+        if not duration:
+            self._progress(f"WARNING: Could not read duration of {file}. Skipping.")
+            return
+        self._progress(f"Duration: {self._seconds_to_time(duration)} "
+                       f"({duration/60:.1f} min); expecting {num_segments} episodes.")
+
+        boundaries = self.detect_boundaries(video_path, duration, num_segments)
+
+        if len(boundaries) < num_segments - 1:
+            self._handle_detection_failure(src_path, video_path, file, duration,
+                                           num_segments, len(boundaries),
+                                           titles, episodes, season)
+            return
+
+        segments = self._build_segments(boundaries, duration, titles, episodes, season)
+        n = self.split_video(video_path, segments)
+        self._progress(f"Done: wrote {n} file(s) for {file}.")
+
+    def _build_segments(self, boundaries, duration, titles, episodes, season):
+        """Turn boundary times into (start, end, info, prepend_intro) segments."""
+        cut_starts = [0.0]
+        cut_ends = []
+        for b in boundaries:
+            start, end, _ = b
+            cut_ends.append(start)  # previous episode always ends at fade start
+            if self.split_point == "After Fade":
+                cut_starts.append(end)   # drop the fade
+            else:  # "At Start of Fade"
+                cut_starts.append(start)
+        cut_ends.append(duration)
+
+        segments = []
+        for i in range(len(cut_starts)):
+            title = titles[i] if i < len(titles) else None
+            ep_num = episodes[i] if i < len(episodes) else None
+            info = None
+            if ep_num is not None:
+                info = self._lookup_episode(season, ep_num, title)
+            elif title:
+                info = self._find_matching_episode(title, season)
+            segments.append((cut_starts[i], cut_ends[i], info, i > 0))
+        return segments
+
+    def _handle_detection_failure(self, src_path, video_path, file, duration,
+                                  num_segments, found, titles, episodes, season):
+        mode = self.on_detection_failure
+        self._progress(f"WARNING: Found only {found} of {num_segments - 1} "
+                       f"transition(s) for {file}.")
+        if mode == "midpoint":
+            self._progress("Falling back to a derived-midpoint split.")
+            targets = self._expected_boundaries(duration, num_segments)
+            fake = [(t, t, 0.0) for t in targets]
+            segments = self._build_segments(fake, duration, titles, episodes, season)
+            n = self.split_video(video_path, segments)
+            self._progress(f"Midpoint fallback wrote {n} file(s).")
+        elif mode == "skip":
+            self._progress("Skipping (on_detection_failure=skip).")
+        else:  # "copy"
+            dest = self._unique_output(os.path.join(self.output_folder, file))
+            shutil.copy2(src_path, dest)
+            self._progress(f"Copied source unsplit -> {os.path.basename(dest)} "
+                           f"(no reliable boundary found).")
 
     def convert_to_mkv(self, input_video: str, output_video: str) -> bool:
-        """Convert video to MKV format without re-encoding"""
-        convert_cmd = [
-            self.ffmpeg_path,
-            "-i", str(Path(input_video).resolve()),
-            "-c", "copy",
-            "-sn",  # Exclude subtitles to avoid unsupported codec errors
-            "-y",
-            str(Path(output_video).resolve())
-        ]
+        cmd = [self.ffmpeg_path, "-i", str(Path(input_video).resolve()),
+               "-c", "copy", "-sn", "-y", str(Path(output_video).resolve())]
         try:
-            subprocess.run(convert_cmd, capture_output=True, text=True, check=True)
-            logging.info(f"Converted {input_video} to MKV format")
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
             return True
         except subprocess.CalledProcessError as e:
-            logging.error(f"Error converting {input_video} to MKV: {e.stderr}")
+            logging.error(f"Error converting to MKV: {e.stderr}")
             return False
+
+    # Attributes populated per-file during processing.
+    _current_show: Optional[str] = None
+    _current_season: Optional[int] = None
+    _current_episodes: Optional[List[int]] = None
+
 
 if __name__ == "__main__":
     log_file = setup_logging()

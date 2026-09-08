@@ -1,6 +1,6 @@
 SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,1,Johnny Bravo,S01E01
-1,2,Jungle Boy in "Mr. Monkeyman,S01E02
+1,2,"Jungle Boy in ""Mr. Monkeyman",S01E02
 1,3,Johnny Bravo and the Amazon Women,S01E03
 1,4,Super Duped,S01E04
 1,5,Bungled in the Jungle,S01E05
@@ -17,7 +17,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,16,Over the Hump!,S01E16
 1,17,Johnny Meets Farrah Fawcett,S01E17
 1,18,Hip-Hop Flop,S01E18
-1,19,Talk to Me, Baby,S01E19
+1,19,"Talk to Me, Baby",S01E19
 1,20,Blanky Hanky Panky,S01E20
 1,21,Beach Blanket Bravo,S01E21
 1,22,The Day the Earth Didn't Move Around Very Much,S01E22
@@ -28,7 +28,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,27,Karate Choppers,S01E27
 1,28,Jumbo Johnny,S01E28
 1,29,The Perfect Gift,S01E29
-1,30,Bravo, James Bravo,S01E30
+1,30,"Bravo, James Bravo",S01E30
 1,31,Going Batty,S01E31
 1,32,Berry the Butler,S01E32
 1,33,Red Riding Johnny,S01E33
@@ -56,7 +56,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,16,Doomates,S02E16
 2,17,Johnny's Telethon,S02E17
 2,18,Johnny's Guardian Angel,S02E18
-2,19,I, Fly,S02E19
+2,19,"I, Fly",S02E19
 2,20,Schnook of the North,S02E20
 2,21,Charm School Johnny,S02E21
 2,22,Johnny and the Beanstalk,S02E22
@@ -80,7 +80,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,40,Dude Ranch Doofus,S02E40
 2,41,A Cake Too Far,S02E41
 2,42,Look Who's Drooling,S02E42
-2,43,The Good, the Bad, and the Beefy,S02E43
+2,43,"The Good, the Bad, and the Beefy",S02E43
 2,44,A Boy and His Bunny,S02E44
 2,45,The Unbravo,S02E45
 2,46,The Johnny Bravo Holiday Special,S02E46

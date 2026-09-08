@@ -1,8 +1,14 @@
 @echo off
 setlocal EnableDelayedExpansion
 
+:: Always operate from the folder this script lives in.
+cd /d "%~dp0"
+
 :: Set directories
 set "SCRIPT_DIR=%~dp0"
+:: Use the project venv interpreter if present, else system python.
+set "PY=python"
+if exist ".venv\Scripts\python.exe" set "PY=.venv\Scripts\python.exe"
 set "BIN_DIR=%SCRIPT_DIR%bin"
 set "SEVEN_ZIP_DIR=%BIN_DIR%\7zip"
 set "TEMP_DIR=%SCRIPT_DIR%temp_extract"
@@ -162,8 +168,8 @@ if not exist "input_videos" mkdir "input_videos"
 if not exist "output_videos" mkdir "output_videos"
 pause
 
-echo Running video processor...
-python process_videos.py
+echo Running video processor (CLI)...
+"%PY%" scene_splitter.py --cli
 pause
 
 echo.

@@ -3,22 +3,25 @@
     "output_folder": "output_videos",
     "episode_csv": "episode_list.csv",
     "intro_duration": 47,
+    "auto_target": true,
     "target_time": 710,
-    "time_margin": 60,
+    "time_margin": 120,
     "black_duration": "0.2",
     "pixel_threshold": "0.15",
     "picture_threshold": "0.95",
-    "_comment": "This is a sample configuration file for Scene Segment Splitter",
-    "_show_notes": {
-        "hey_arnold": {
-            "intro_duration": 47,
-            "target_time": 710,
-            "notes": "Standard settings for Hey Arnold! episodes"
-        },
-        "rugrats": {
-            "intro_duration": 30,
-            "target_time": 660,
-            "notes": "Example: Rugrats has a shorter intro and different transition time"
-        }
+    "transition_selection": "Smart",
+    "split_point": "At Start of Fade",
+    "detection_method": "Comprehensive (All Methods)",
+    "on_detection_failure": "copy",
+    "_comment": "Sample configuration for Scene Segment Splitter. Copy this and edit per show.",
+    "_help": {
+        "intro_duration": "Seconds of shared intro to re-insert at the start of every episode after the first.",
+        "auto_target": "true = derive the expected boundary from the runtime ((duration+intro)/2). Set false to force target_time.",
+        "target_time": "Manual expected boundary (seconds) used only when auto_target is false.",
+        "time_margin": "How far (+/- seconds) from the expected boundary to search.",
+        "transition_selection": "Smart | Select Latest Transition | Select Earliest Transition",
+        "split_point": "At Start of Fade | After Fade",
+        "detection_method": "Comprehensive (All Methods) | Standard Blackdetect Only | Histogram Analysis | Scene Change Detection",
+        "on_detection_failure": "copy (copy source unsplit) | midpoint (split at derived midpoint) | skip"
     }
 }

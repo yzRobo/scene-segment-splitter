@@ -1,7 +1,7 @@
 SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,1,Field Trip to Folsom Prison,S01E01
 1,2,The Girl's Bathroom,S01E02
-1,3,I Am Weasel: This Bridge, Not Weasel Bridge,S01E03
+1,3,"I Am Weasel: This Bridge, Not Weasel Bridge",S01E03
 1,4,Supermodel Cow,S01E04
 1,5,Part Time Job,S01E05
 1,6,I Am Weasel: I.R. on His First Date,S01E06
@@ -19,7 +19,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,18,I Am Weasel: I Am My Lifetime,S01E18
 1,19,School Bully,S01E19
 1,20,Time Machine,S01E20
-1,21,I Am Weasel: My Friend, the Smart Banana,S01E21
+1,21,"I Am Weasel: My Friend, the Smart Banana",S01E21
 1,22,Orthodontic Police,S01E22
 1,23,Cow with Four Eyes,S01E23
 1,24,I Am Weasel: I.R. Pixie Fairie,S01E24
@@ -45,7 +45,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,5,The Laughing Puddle,S02E05
 2,6,I Am Weasel: I.R. Gentlemans,S02E06
 2,7,Pirate Lessons,S02E07
-2,8,Halloween with Dead Ghost, Coast to Coast,S02E08
+2,8,"Halloween with Dead Ghost, Coast to Coast",S02E08
 2,9,I Am Weasel: I Are a Artiste,S02E09
 2,10,Tongue Sandwich,S02E10
 2,11,Dream Date Chicken,S02E11
@@ -109,7 +109,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 4,4,Red Butler,S04E04
 4,5,Cow's A Beauty,S04E05
 4,6,Piano Lessons,S04E06
-4,7,Duck, Duck, Chicken,S04E07
+4,7,"Duck, Duck, Chicken",S04E07
 4,8,The Great Pantzini,S04E08
 4,9,The Cow and Chicken Show,S04E09
 4,10,Who's a Big Red Guy?,S04E10

@@ -1,7 +1,7 @@
 SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,1,Tommy's First Birthday,S01E01
 1,2,Barbecue Story,S01E02
-1,3,Waiter, There's a Baby in My Soup,S01E03
+1,3,"Waiter, There's a Baby in My Soup",S01E03
 1,4,At the Movies,S01E04
 1,5,Slumber Party,S01E05
 1,6,Baby Commercial,S01E06
@@ -86,7 +86,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 3,9,Circus Angelicus,S03E09
 3,10,The Stork,S03E10
 3,11,The Baby Vanishes,S03E11
-3,12,Farewell, My Friend,S03E12
+3,12,"Farewell, My Friend",S03E12
 3,13,When Wishes Come True,S03E13
 3,14,Angelica Breaks a Leg,S03E14
 3,15,The Last Babysitter,S03E15
@@ -159,7 +159,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 5,2,Sleep Trouble,S05E02
 5,3,The First Cut,S05E03
 5,4,Chuckie Grows,S05E04
-5,5,The Wild, Wild West,S05E05
+5,5,"The Wild, Wild West",S05E05
 5,6,Angelica for a Day,S05E06
 5,7,The Word of The Day,S05E07
 5,8,Jonathan Babysits,S05E08
@@ -167,7 +167,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 5,10,Lady Luck,S05E10
 5,11,Crime and Punishment,S05E11
 5,12,Baby Maybe,S05E12
-5,13,He Saw, She Saw,S05E13
+5,13,"He Saw, She Saw",S05E13
 5,14,Piggy's Pizza Palace,S05E14
 5,15,Fugitive Tommy,S05E15
 5,16,Visiting Aunt Miriam,S05E16
@@ -321,6 +321,6 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 9,18,Baby Sale,S09E18
 9,19,Steve,S09E19
 9,20,The Braveliest Baby,S09E20
-9,21,Gimme an "A,S09E21
+9,21,"Gimme an ""A",S09E21
 9,22,Fountain of Youth,S09E22
 9,23,Kimi Takes the Cake,S09E23

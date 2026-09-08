@@ -23,13 +23,13 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,9,Timvisible,S02E09
 2,10,That's Life!,S02E10
 2,11,Shiny Teeth,S02E11
-2,12,Odd, Odd West,S02E12
+2,12,"Odd, Odd West",S02E12
 2,13,MicroPhony,S02E13
 2,14,So Totally Spaced Out,S02E14
 2,15,The Switch Glitch,S02E15
 2,16,Mighty Mom & Dyno Dad,S02E16
 2,17,Knighty Knight,S02E17
-2,18,Fairy, Fairy, Quite Contrary,S02E18
+2,18,"Fairy, Fairy, Quite Contrary",S02E18
 2,19,Nectar of the Odds,S02E19
 2,20,Hail to the Chief,S02E20
 2,21,Twistory,S02E21
@@ -43,7 +43,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 3,5,Engine Blocked,S03E05
 3,6,Most Wanted Wish,S03E06
 3,7,What's the Difference?,S03E07
-3,8,Oh, Brother!,S03E08
+3,8,"Oh, Brother!",S03E08
 3,9,The Big Scoop!,S03E09
 3,10,Abra-Catastrophe!,S03E10
 3,11,Sleepover and Over,S03E11
@@ -92,7 +92,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 5,2,Love at First Height,S05E02
 5,3,You Doo!,S05E03
 5,4,Just Desserts!,S05E04
-5,5,Go Young, West Man!,S05E05
+5,5,"Go Young, West Man!",S05E05
 5,6,Birthday Wish,S05E06
 5,7,Blondas Have More Fun,S05E07
 5,8,Five Days of Flarg,S05E08
@@ -111,7 +111,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 5,21,Catman Begins!,S05E21
 5,22,Mooooving Day,S05E22
 5,23,Big Wanda,S05E23
-5,24,Oh, Brother!,S05E24
+5,24,"Oh, Brother!",S05E24
 5,25,What's the Difference?,S05E25
 5,26,Smart Attack!,S05E26
 5,27,Operation: F.U.N.,S05E27
@@ -157,7 +157,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 7,15,Crosby's Cookies,S07E15
 7,16,Planet Poof,S07E16
 7,17,The Boss of Me,S07E17
-7,18,He Poofs, He Scores,S07E18
+7,18,"He Poofs, He Scores",S07E18
 7,19,Playdate of Doom,S07E19
 7,20,Teacher's Pet,S07E20
 7,21,Please Don't Feed the Turners,S07E21
@@ -179,7 +179,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 7,37,The Great Fairy Share Scare,S07E37
 7,38,Whittle Me This,S07E38
 7,39,The Past and the Furious,S07E39
-8,1,A Fairly Odd Movie: Grow Up, Timmy Turner!,S08E01
+8,1,"A Fairly Odd Movie: Grow Up, Timmy Turner!",S08E01
 8,2,Love Triangle,S08E02
 8,3,Timmy's Secret Wish!,S08E03
 8,4,Invasion of the Dads,S08E04

@@ -1,11 +1,16 @@
 {
     "input_folder": "input_videos",
     "output_folder": "output_videos",
-    "episode_csv": "episode_list.csv",
+    "episode_csv": "episode_lists/heyarnold__episodes.csv",
     "intro_duration": 47,
+    "auto_target": true,
     "target_time": 710,
-    "time_margin": 60,
+    "time_margin": 120,
     "black_duration": "0.2",
     "pixel_threshold": "0.15",
-    "picture_threshold": "0.95"
+    "picture_threshold": "0.95",
+    "transition_selection": "Smart",
+    "split_point": "At Start of Fade",
+    "detection_method": "Comprehensive (All Methods)",
+    "on_detection_failure": "copy"
 }

@@ -1,7 +1,12 @@
-click==8.1.7
-colorama==0.4.6
-numpy==2.1.3
-opencv-python==4.10.0.84
-platformdirs==4.3.6
-scenedetect==0.6.4
-tqdm==4.67.0
+# Scene Segment Splitter - Python dependencies
+#
+# The app itself runs on the Python standard library only (tkinter included).
+# The only optional package is the modern GUI theme:
+sv-ttk>=2.6            # Sun Valley (Windows 11-style) ttk theme; GUI falls back gracefully if absent
+#
+# External BINARIES are required at runtime (not pip-installable):
+#   ffmpeg, ffprobe, mkvmerge
+# Place them in the local ./bin folder (Windows .exe are bundled there) or install
+# them and add them to your PATH.
+#
+# Note: on Linux, tkinter is provided by the OS, e.g.  sudo apt-get install python3-tk

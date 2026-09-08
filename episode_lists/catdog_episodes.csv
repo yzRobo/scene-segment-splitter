@@ -10,7 +10,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,9,Diamond Fever,S01E09
 1,10,The Pet,S01E10
 1,11,Party Animal,S01E11
-1,12,Mush, Dog, Mush!,S01E12
+1,12,"Mush, Dog, Mush!",S01E12
 1,13,Armed and Dangerous,S01E13
 1,14,Fistful of Mail!,S01E14
 1,15,Pumped,S01E15
@@ -84,10 +84,10 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,44,CatDog Loves Winslow,S02E44
 2,45,The Sludge Monster,S02E45
 2,46,A Mild Dog,S02E46
-3,1,Silents, Please!,S03E01
+3,1,"Silents, Please!",S03E01
 3,2,Gorilla My Dreams,S03E02
 3,3,Sweet and Lola,S03E03
-3,4,Rich Shriek, Poor Shriek,S03E04
+3,4,"Rich Shriek, Poor Shriek",S03E04
 3,5,The Amazing Ray,S03E05
 3,6,CatDog's Strange Trip,S03E06
 3,7,CatDog and the Great Parent Mystery,S03E07
@@ -105,4 +105,4 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 3,19,CatDog's New Mom,S03E19
 3,20,A Hard Day's CatDog,S03E20
 3,21,Vexed of Kin,S03E21
-3,22,Meat, Dog's Friends,S03E22
+3,22,"Meat, Dog's Friends",S03E22

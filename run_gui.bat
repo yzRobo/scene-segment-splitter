@@ -1,82 +1,50 @@
 @echo off
-REM run_gui.bat - Scene Segment Splitter GUI Launcher for Windows
-REM This batch file launches the GUI version of Scene Segment Splitter
-REM It checks for Python installation and creates necessary directories
-
+REM run_gui.bat - Launch the Scene Segment Splitter GUI on Windows.
 setlocal EnableDelayedExpansion
-
-:: Set window title
 title Scene Segment Splitter - GUI
 
-:: Check if Python is installed
-echo Checking Python installation...
-python --version >nul 2>&1
+REM Always run from the folder this script lives in.
+cd /d "%~dp0"
+
+REM Pick an interpreter: project venv first, then system python.
+set "PY=python"
+if exist ".venv\Scripts\python.exe" set "PY=.venv\Scripts\python.exe"
+
+echo Checking Python...
+"%PY%" --version >nul 2>&1
 if errorlevel 1 (
-    echo ERROR: Python is not installed or not in PATH!
-    echo Please install Python 3.10 or later from https://www.python.org/
+    echo ERROR: Python is not installed or not on PATH.
+    echo Install Python 3.10+ from https://www.python.org/
     pause
     exit /b 1
 )
 
-:: Create necessary directories if they don't exist
-echo Setting up directories...
-
-if not exist "input_videos" (
-    mkdir "input_videos"
-    echo Created input_videos folder
+REM Create the working folders if missing.
+for %%D in (input_videos output_videos configs logs episode_lists) do (
+    if not exist "%%D" mkdir "%%D"
 )
 
-if not exist "output_videos" (
-    mkdir "output_videos"
-    echo Created output_videos folder
-)
-
-if not exist "configs" (
-    mkdir "configs"
-    echo Created configs folder for saving configuration files
-)
-
-if not exist "logs" (
-    mkdir "logs"
-    echo Created logs folder
-)
-
-if not exist "episode_lists" (
-    mkdir "episode_lists"
-    echo Created episode_lists folder for episode CSV files
-)
-
-:: Check if the GUI script exists
-if not exist "scene_splitter.py" (
-    echo ERROR: scene_splitter.py not found!
-    echo Please ensure all files are properly extracted.
-    pause
-    exit /b 1
-)
-
-:: Install dependencies if requirements.txt exists and user agrees
+REM Install/refresh optional dependencies (the modern theme). Harmless if present.
 if exist "requirements.txt" (
-    echo.
-    echo Checking dependencies...
-    python -m pip show tkinter >nul 2>&1
+    "%PY%" -m pip install --quiet --disable-pip-version-check -r requirements.txt >nul 2>&1
+)
+
+REM Warn if the required media binaries are missing (bundled bin\ or on PATH).
+if not exist "bin\mkvmerge.exe" (
+    where mkvmerge >nul 2>&1
     if errorlevel 1 (
-        echo tkinter is not available. Installing dependencies...
-        python -m pip install -r requirements.txt
+        echo.
+        echo WARNING: mkvmerge/ffmpeg not found in bin\ or on PATH.
+        echo Run run_processor.bat once to download them, or add them to PATH.
+        echo.
     )
 )
 
-:: Launch the GUI
-echo.
-echo Launching Scene Segment Splitter GUI...
-echo.
-python scene_splitter.py
-
-:: Check if the script exited with an error
+echo Launching Scene Segment Splitter...
+"%PY%" scene_splitter.py
 if errorlevel 1 (
     echo.
-    echo ERROR: The application encountered an error!
-    echo Check the logs folder for details.
+    echo The application exited with an error. Check the logs\ folder.
     pause
 )
-
 endlocal

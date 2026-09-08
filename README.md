@@ -1,207 +1,165 @@
-
 # Scene Segment Splitter
 
-## Table of Contents 
-- [Features](#features) 
-- [Prerequisites](#prerequisites) 
-- - [Virtual Environment and Episode List Setup](#setup) 
-- - [Setup FFmpeg on Windows](#setup-ffmpeg-on-windows) 
-- - [Setup FFmpeg on macOS](#setup-ffmpeg-on-macos) 
-- - [Setup FFmpeg on Linux](#setup-ffmpeg-on-linux) 
-- - [Usage](#usage) 
-- - [Customization](#customization) 
-- - [License](#license) 
-- - [Contributions](#contributions)
-  
+Split video files that contain **two (or more) episodes** into correctly named,
+per-episode files - without re-encoding - and re-insert the shared intro at the
+start of every episode after the first.
 
-## Features
+Originally built for classic Nickelodeon / Cartoon Network cartoons (Hey Arnold!,
+Ed Edd n Eddy, Rugrats, etc.) where a single "half-hour" file holds two ~11-minute
+segments joined by a fade to black.
 
-- Automatically split video files containing two episodes
+---
 
-- Extract the intro segment and add it to the second episode
+## Contents
+- [How it works](#how-it-works)
+- [What's new in this release](#whats-new-in-this-release)
+- [Requirements](#requirements)
+- [Setup](#setup)
+- [FFmpeg / mkvmerge binaries](#ffmpeg--mkvmerge-binaries)
+- [Usage (GUI)](#usage-gui)
+- [Usage (CLI)](#usage-cli)
+- [Episode lists](#episode-lists)
+- [Configuration reference](#configuration-reference)
+- [Troubleshooting](#troubleshooting)
+- [License](#license)
 
-- Detect transitions between episodes using black frame detection
+---
 
-- Assign appropriate episode names and numbers based on the input filename
+## How it works
 
-- Generate a log file with detailed processing information
+1. **Parse the filename** - `Show Name - S01E15-16 - Title A + Title B` - to get the
+ show, season, source episode number(s) and the per-segment titles.
+2. **Detect the boundary** - scan the whole file for black frames and pick the
+ long fade nearest the expected midpoint. Inter-episode boundaries are *long*
+ fades (typically 3-6 s); short act-break fades are ignored. The expected
+ boundary is derived from the runtime: `(duration + intro) / 2` for a two-episode
+ file (generalized to `intro + j*(duration-intro)/N` for N segments).
+3. **Look up the real episode** by **title** in your episode-list CSV. Source
+ files often carry the *wrong* episode number, so the title is authoritative - 
+ the tool corrects the numbering and names each output from the list.
+4. **Split losslessly** with `mkvmerge` and prepend the intro to later segments.
 
-## Prerequisites
+The result: `Show Name - S01E21 - Who, What, Where, Ed!.mkv` and
+`Show Name - S01E22 - Keeping Up with the Eds.mkv`.
 
-1. Python 3.10 or later
+## What's new in this release
 
-2. FFmpeg installed and added to the system's `PATH` environment variable
+- **Reliable across shows.** The old build effectively only worked on Hey Arnold.
+ Fixed: episode-list CSVs with unquoted commas silently truncated titles; the
+ black-frame duration cap discarded the real (long) inter-episode fade; the
+ target time was a hard-coded per-show constant; the histogram and scene-change
+ detectors were non-functional.
+- **Auto-detected boundary** from the runtime - no per-show tuning needed.
+- **Smart transition scoring** (favor the long fade near the midpoint), with
+ Earliest/Latest still available and a relaxed-threshold fallback ladder.
+- **Never silently drops a file.** Unmatched or undetected files are copied
+ through (configurable) instead of vanishing.
+- **Robust filename parsing** - `S01E01E02`, `S01E15-16`, `S01E15-E16`, and
+ `+ & and / _` title separators (CSV-guided so `Arnold & Lila` stays one title).
+- **Modern GUI** (Windows 11-style theme, light/dark) that is fully thread-safe.
+- **One shared engine** for the GUI and CLI; the CLI now honors config files.
+- **Cross-platform** binary lookup (bundled `bin/` **or** system `PATH`).
 
-  
+## Requirements
+
+- Python 3.10+
+- `ffmpeg`, `ffprobe`, `mkvmerge` (see [below](#ffmpeg--mkvmerge-binaries))
+- `tkinter` for the GUI (bundled with Python on Windows/macOS; on Linux install
+ `python3-tk`)
 
 ## Setup
 
-1.  **Create a Virtual Environment (venv)**:
+```bash
+# 1) create and activate a virtual environment
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
 
-- On Windows:
-
+# 2) install dependencies (optional modern theme)
+pip install -r requirements.txt
 ```
 
-python -m venv myenv
+Then launch the GUI: double-click **`run_gui.bat`** (Windows) or run
+**`./run_gui.sh`** (macOS/Linux).
 
-myenv\Scripts\activate
+## FFmpeg / mkvmerge binaries
 
+The three helper binaries are **not** committed to this repo. Provide them one of
+two ways:
+
+- **Bundled:** put `ffmpeg`, `ffprobe`, `mkvmerge` (`.exe` on Windows) in `./bin`.
+ On Windows, `run_processor.bat` can download them for you automatically.
+- **System PATH:** install them so they're on your `PATH` (e.g.
+ `brew install ffmpeg mkvtoolnix` or `sudo apt-get install ffmpeg mkvtoolnix`).
+ The app checks `bin/` first, then `PATH`.
+
+## Usage (GUI)
+
+1. **Process tab** - set the input folder (your double-episode files), output
+ folder, and the episode-list CSV.
+2. Optionally adjust the **Configuration tab** (or just leave *Auto-detect
+ boundary* on).
+3. Click **Start Processing** and watch the log.
+
+Name your source files `Show Name - SxxExx - Title A + Title B.ext`.
+Supported inputs: `.mkv .mp4 .avi .m4v .mov` (outputs are `.mkv`).
+
+## Usage (CLI)
+
+```bash
+# use a saved show profile
+python scene_splitter.py --cli --config configs/hey_arnold_config.json
+
+# or pass options directly
+python scene_splitter.py --cli --input "D:/in" --output "D:/out" --csv show.csv \
+ --intro-duration 30
+
+python scene_splitter.py --cli --help # full option list
 ```
 
-- On macOS/Linux:
+## Episode lists
 
+CSV format:
+
+```csv
+SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
+1,21,"Who, What, Where, Ed!",S01E21
+1,22,Keeping Up with the Eds,S01E22
 ```
 
-python3 -m venv myenv
+Ready-made lists for many shows live in `episode_lists/`. Build your own from
+pasted text in the GUI's **Episode Manager** tab, or with
+`python episode_formatter.py`. Titles containing commas are quoted automatically.
 
-source myenv/bin/activate
+## Configuration reference
 
-```
-2.  **Install the Required Dependencies**:
+Saved as JSON in `configs/`. See `configs/sample_config.json` for an annotated
+template. Key fields:
 
-	```pip install -r requirements.txt```
+| Field | Meaning |
+|-------|---------|
+| `intro_duration` | Seconds of shared intro re-inserted into later episodes |
+| `auto_target` | Derive the boundary from runtime (recommended) |
+| `target_time` | Manual boundary time; used only when `auto_target` is false |
+| `time_margin` | ± seconds to search around the expected boundary |
+| `transition_selection` | `Smart` \| `Select Latest Transition` \| `Select Earliest Transition` |
+| `split_point` | `At Start of Fade` \| `After Fade` |
+| `detection_method` | `Comprehensive (All Methods)` \| `Standard Blackdetect Only` \| `Histogram Analysis` \| `Scene Change Detection` |
+| `on_detection_failure` | `copy` \| `midpoint` \| `skip` |
 
-	This will install all the necessary Python packages listed in the `requirements.txt` file.
+## Troubleshooting
 
-3.  **Ensure Episode List is Updated**:
-	
-	The CSV file in the root directory is in a specific format. You will need to ensure whatever series you run this for is updated for this format (currently is has the entire list of Hey Arnold! episodes). Sonarr has a great API that allowed me to quickly pull the data needed into Excel, so I could edit it into the CSV format needed for the script. 
-
-### Setup FFmpeg on Windows
-
-1. **Download FFmpeg**:
-   - Go to the official FFmpeg website (https://ffmpeg.org/download.html) and download the Windows build of FFmpeg.
-   - Choose the "ffmpeg-git-full.7z" option from "Windows builds from gyan.dev" and download the file.
-
-2. **Extract FFmpeg**:
-   - Extract the downloaded ZIP file to a directory of your choice. For this example, we'll use `C:\ffmpeg`.
-   - The extracted folder should contain the `bin`, `doc`, `lib`, and `share` directories.
-
-3. **Add FFmpeg to the System PATH**:
-   - Open the Start menu and search for "Environment Variables".
-   - Click on "Edit the system environment variables".
-   - In the Advanced System Properties window, click the "Environment Variables" button.
-   - In the Environment Variables window, under the "System Variables" section, find the "Path" variable and click "Edit".
-   - Click the "New" button and add the full path to the `bin` folder of your extracted FFmpeg directory (e.g., `C:\ffmpeg\bin`).
-   - Click "OK" to save the changes and close all the windows.
-
-4. **Verify the FFmpeg Installation**:
-   - Open a new Command Prompt window.
-   - Type `ffmpeg -version` and press Enter.
-   - If the installation was successful, you should see the FFmpeg version information displayed.
-
-Now that FFmpeg is installed and added to the system's PATH, you can proceed with the rest of the setup instructions in the README.md file.
-
-### Setup FFmpeg on macOS
-
-1.  **Install FFmpeg using Homebrew**:
-
-- Open the Terminal application.
-
-- Install Homebrew if you haven't already:
-
-```
-
-/usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-
-```
-
-- Install FFmpeg using Homebrew:
-
-```
-
-brew install ffmpeg
-
-```
-
-2.  **Verify the FFmpeg Installation**:
-
-- Open a new Terminal window.
-
-- Type `ffmpeg -version` and press Enter.
-
-- If the installation was successful, you should see the FFmpeg version information displayed.
-
-
-### Setup FFmpeg on Linux
-
-1.  **Install FFmpeg using a Package Manager**:
-
-- Open the Terminal application.
-
-- Install FFmpeg using your Linux distribution's package manager. The command may vary depending on your distribution:
-
-- For Ubuntu/Debian-based systems:
-
-```
-
-sudo apt-get update
-
-sudo apt-get install ffmpeg
-
-```
-
-- For Fedora/CentOS/RHEL:
-
-```
-
-sudo dnf install ffmpeg
-
-```
-
-- For Arch Linux:
-
-```
-
-sudo pacman -S ffmpeg
-
-```
-
-2.  **Verify the FFmpeg Installation**:
-
-- Open a new Terminal window.
-
-- Type `ffmpeg -version` and press Enter.
-
-- If the installation was successful, you should see the FFmpeg version information displayed.
-
-  
-
-## Usage
-
-1.  **Prepare the Input Videos**: Place the video files you want to process in the `input_videos` directory.
-
-2.  **Run the Script**:
-- **On Windows**
-	- Run run_processor.bat to start the script
-	
-- **On Mac/Linux**
-	- Make the Shell Script Executable:
-		- ```chmod +x process_videos.sh```
-	- Run the Shell Script:
-		- ```./process_videos.sh```
-
- - **Alternatively you can run the script manually:**
-   - ```python video_processing.py```
-
-3.  **Check the Log File**: The script will generate a log file named `video_processing_<timestamp>.log` in the current directory, containing details about the processing. This can be helpful if you are having issues with the splitting/saving.
-
-**Purpose**: The `process_videos.sh` script simplifies the setup and execution process on Mac/Linux by automatically creating necessary directories and running the Python script. This ensures a seamless experience similar to the `.bat` file for Windows users.
-
-  
-
-## Customization
-
--  **Adjust the Intro Duration**: Modify the `INTRO_DURATION` constant in the `VideoProcessor` class to change the duration of the intro segment.
-
--  **Modify the Transition Detection**: Adjust the parameters (e.g., `d`, `pix_th`, `pic_th`) in the `detect_black_frames()` method to fine-tune the transition detection.
-
--  **Enhance the Episode Naming**: Modify the `_get_episode_names()` and `_find_matching_episode()` methods to improve the episode naming logic.
+- **"mkvmerge/ffmpeg not found"** - put the binaries in `bin/` or on your `PATH`.
+- **Split at the wrong point** - increase `time_margin`, or set `auto_target`
+ off with a manual `target_time`; try `Select Earliest/Latest Transition`.
+- **Episode not renamed** - make sure the title in the filename matches a title
+ in your episode-list CSV (matching is fuzzy but not magic).
+- **`tkinter not found`** - Windows: reinstall Python with "tcl/tk"; Ubuntu:
+ `sudo apt-get install python3-tk`.
+- Check the timestamped log in `logs/` for details.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
-
-## Contributions
-
-Contributions are welcome! If you find any issues or have suggestions for improvements, please feel free to submit a pull request.
+See [LICENSE](LICENSE).

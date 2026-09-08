@@ -2,7 +2,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,1,A Night at the Katz Motel,S01E01
 1,2,Cajun Granny Stew,S01E02
 1,3,The Shadow of Courage,S01E03
-1,4,Dr. Le Quack, Amnesia Specialist,S01E04
+1,4,"Dr. Le Quack, Amnesia Specialist",S01E04
 1,5,Courage Meets Bigfoot,S01E05
 1,6,Hothead,S01E06
 1,7,The Demon in the Mattress,S01E07
@@ -18,7 +18,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 1,17,Queen of the Black Puddle,S01E17
 1,18,Everyone Wants to Direct,S01E18
 1,19,The Snowman Cometh,S01E19
-1,20,The Precious, Wonderful, Adorable, Lovable Duckling,S01E20
+1,20,"The Precious, Wonderful, Adorable, Lovable Duckling",S01E20
 1,21,Heads of Beef,S01E21
 1,22,Klub Katz,S01E22
 1,23,The Revenge of the Chicken from Outer Space,S01E23
@@ -43,7 +43,7 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 2,16,Forbidden Hat of Gold,S02E16
 2,17,Serpent of Evil River,S02E17
 2,18,The Transplant,S02E18
-2,19,Car, Broke, Phone, Yes,S02E19
+2,19,"Car, Broke, Phone, Yes",S02E19
 2,20,Cowboy Courage,S02E20
 2,21,Evil Weevil,S02E21
 2,22,McPhearson Phantom,S02E22
@@ -83,13 +83,13 @@ SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
 4,5,Le Quack Balloon,S04E05
 4,6,Windmill Vandals,S04E06
 4,7,The Uncommon Cold,S04E07
-4,8,Farmer-Hunter, Farmer-Hunted,S04E08
+4,8,"Farmer-Hunter, Farmer-Hunted",S04E08
 4,9,Bride of the Swamp Monster,S04E09
 4,10,Goat Pain,S04E10
 4,11,Muriel Blows Up,S04E11
 4,12,Profiles in Courage,S04E12
 4,13,The Mask,S04E13
-4,14,Squatting Tiger, Hidden Dog,S04E14
+4,14,"Squatting Tiger, Hidden Dog",S04E14
 4,15,Muted Muriel,S04E15
 4,16,Aqua-Farmer,S04E16
 4,17,Food of the Dragon,S04E17

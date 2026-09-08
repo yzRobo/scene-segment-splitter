@@ -1,181 +1,125 @@
 #!/usr/bin/env python3
 """
-episode_formatter.py - Standalone Episode List Formatter
+episode_formatter.py - Episode list formatter
 
-This tool helps convert episode lists from various formats into the CSV format
-required by Scene Segment Splitter. It can parse lists from:
-- Wikipedia
-- IMDb
-- TheTVDB
-- TV Guide websites
-- Plain text lists
+Convert episode lists pasted from Wikipedia / IMDb / TheTVDB / plain text into
+the CSV format Scene Segment Splitter expects:
 
-Usage: python episode_formatter.py
-Or paste directly into the Episode Manager tab in the GUI
+    SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo
+
+Use standalone (`python episode_formatter.py`) or via the GUI's Episode Manager.
 """
 
 import re
 import csv
 import sys
+from io import StringIO
 from typing import List, Dict, Optional
+
 
 class EpisodeFormatter:
     def __init__(self):
+        # (regex, type). Order matters: more specific patterns first.
         self.patterns = [
-            # S01E01 - Title or 1x01 - Title
-            (r'[Ss]?(\d+)[xXeE](\d+)\s*[-–—]\s*(.+)', 'standard'),
-            
+            # S01E01 - Title / 1x01 - Title / S01E01: Title / S01E01 Title
+            (r'^[Ss]?(\d{1,2})[xXeE](\d{1,3})\s*(?:[-–—:]\s*|\s+)(.+)$', 'standard'),
+            # S1.E1 . Title  (IMDb)
+            (r'^S(\d{1,2})\.E(\d{1,3})\s*[∙·:\-–—]\s*(.+)$', 'imdb'),
             # Season 1, Episode 1: Title
-            (r'Season\s*(\d+),?\s*Episode\s*(\d+):?\s*(.+)', 'verbose'),
-            
-            # "Title" (S1E1) or (1x01)
-            (r'["\'](.+?)["\']\s*\([Ss]?(\d+)[xXeE](\d+)\)', 'quoted'),
-            
-            # 1. Title (needs season)
-            (r'^(\d+)\.\s*(.+)', 'numbered'),
-            
-            # Episode 1: Title (needs season)
-            (r'Episode\s*(\d+):?\s*(.+)', 'episode_only'),
-            
-            # Wikipedia format: 1 "Title" or 1 "Title" Date
-            (r'^(\d+)\s*["\'](.+?)["\']\s*(?:\d{4}-\d{2}-\d{2})?', 'wiki_numbered'),
-            
-            # IMDb format: S1.E1 ∙ Title
-            (r'S(\d+)\.E(\d+)\s*[∙·]\s*(.+)', 'imdb'),
-            
-            # Title (1.01) or Title (101)
-            (r'(.+?)\s*\((\d)\.?(\d{2})\)', 'title_first'),
+            (r'^Season\s*(\d{1,2}),?\s*Episode\s*(\d{1,3})\s*[:\-–—]?\s*(.+)$', 'verbose'),
+            # "Title" (S1E1) / (1x01)
+            (r'^["\'](.+?)["\']\s*\([Ss]?(\d{1,2})[xXeE](\d{1,3})\)$', 'quoted'),
+            # Title (1.01)  -> season.episode
+            (r'^(.+?)\s*\((\d{1,2})\.(\d{2})\)$', 'title_first'),
+            # 1.01 Title  -> season.episode
+            (r'^(\d{1,2})\.(\d{2})\s+(.+)$', 'dotted_se'),
+            # 1. Title  (numbered; uses default season)
+            (r'^(\d{1,3})\.\s*(.+)$', 'numbered'),
+            # Episode 1: Title  (uses default season)
+            (r'^Episode\s*(\d{1,3})\s*[:\-–—]?\s*(.+)$', 'episode_only'),
+            # 1 "Title"  (Wikipedia; uses default season)
+            (r'^(\d{1,3})\s+["\'](.+?)["\']', 'wiki_quoted'),
+            # 1 Title  (bare number then title; uses default season) - last resort
+            (r'^(\d{1,3})\s+(.+)$', 'numbered_space'),
         ]
-        
-    def parse_episode_list(self, text: str, default_season: int = 1) -> List[Dict[str, any]]:
-        """Parse episode list from text"""
-        episodes = []
-        lines = text.strip().split('\n')
+
+    def parse_episode_list(self, text: str, default_season: int = 1) -> List[Dict]:
+        episodes: List[Dict] = []
         current_season = default_season
-        
-        for line in lines:
-            line = line.strip()
+        for raw in text.strip().split('\n'):
+            line = raw.strip()
             if not line:
                 continue
-                
-            # Check for season headers
-            season_match = re.match(r'Season\s*(\d+)', line, re.IGNORECASE)
-            if season_match:
-                current_season = int(season_match.group(1))
+            # A standalone "Season N" header sets the running season.
+            header = re.match(r'^Season\s*(\d{1,2})\s*:?\s*$', line, re.IGNORECASE)
+            if header:
+                current_season = int(header.group(1))
                 continue
-                
-            # Try to parse episode
-            episode_info = self.parse_episode_line(line, current_season)
-            if episode_info:
-                episodes.append(episode_info)
-                
+            try:
+                info = self.parse_episode_line(line, current_season)
+            except Exception:
+                info = None
+            if info:
+                episodes.append(info)
         return episodes
-        
-    def parse_episode_line(self, line: str, default_season: int = 1) -> Optional[Dict[str, any]]:
-        """Parse a single episode line"""
-        # Clean up common formatting
-        line = line.strip()
-        line = re.sub(r'\s+', ' ', line)  # Multiple spaces to single
-        line = re.sub(r'^\d+\s+', '', line) if line[0].isdigit() and line[1] == ' ' else line  # Remove leading episode number without dot
-        
-        for pattern, pattern_type in self.patterns:
-            match = re.match(pattern, line)
-            if match:
-                if pattern_type == 'standard':
-                    return {
-                        'season': int(match.group(1)),
-                        'episode': int(match.group(2)),
-                        'title': self.clean_title(match.group(3))
-                    }
-                elif pattern_type == 'verbose':
-                    return {
-                        'season': int(match.group(1)),
-                        'episode': int(match.group(2)),
-                        'title': self.clean_title(match.group(3))
-                    }
-                elif pattern_type == 'quoted':
-                    return {
-                        'season': int(match.group(2)),
-                        'episode': int(match.group(3)),
-                        'title': self.clean_title(match.group(1))
-                    }
-                elif pattern_type == 'numbered':
-                    return {
-                        'season': default_season,
-                        'episode': int(match.group(1)),
-                        'title': self.clean_title(match.group(2))
-                    }
-                elif pattern_type == 'episode_only':
-                    return {
-                        'season': default_season,
-                        'episode': int(match.group(1)),
-                        'title': self.clean_title(match.group(2))
-                    }
-                elif pattern_type == 'wiki_numbered':
-                    return {
-                        'season': default_season,
-                        'episode': int(match.group(1)),
-                        'title': self.clean_title(match.group(2))
-                    }
-                elif pattern_type == 'imdb':
-                    return {
-                        'season': int(match.group(1)),
-                        'episode': int(match.group(2)),
-                        'title': self.clean_title(match.group(3))
-                    }
-                elif pattern_type == 'title_first':
-                    return {
-                        'season': int(match.group(2)),
-                        'episode': int(match.group(3)),
-                        'title': self.clean_title(match.group(1))
-                    }
-                    
+
+    def parse_episode_line(self, line: str, default_season: int = 1) -> Optional[Dict]:
+        line = re.sub(r'\s+', ' ', line.strip())
+        if not line:
+            return None
+
+        for pattern, kind in self.patterns:
+            m = re.match(pattern, line)
+            if not m:
+                continue
+            if kind in ('standard', 'imdb', 'verbose'):
+                return {'season': int(m.group(1)), 'episode': int(m.group(2)),
+                        'title': self.clean_title(m.group(3))}
+            if kind == 'quoted':
+                return {'season': int(m.group(2)), 'episode': int(m.group(3)),
+                        'title': self.clean_title(m.group(1))}
+            if kind in ('title_first',):
+                return {'season': int(m.group(2)), 'episode': int(m.group(3)),
+                        'title': self.clean_title(m.group(1))}
+            if kind == 'dotted_se':
+                return {'season': int(m.group(1)), 'episode': int(m.group(2)),
+                        'title': self.clean_title(m.group(3))}
+            if kind in ('numbered', 'episode_only', 'wiki_quoted', 'numbered_space'):
+                return {'season': default_season, 'episode': int(m.group(1)),
+                        'title': self.clean_title(m.group(2))}
         return None
-        
+
     def clean_title(self, title: str) -> str:
-        """Clean up episode title"""
-        # Remove quotes
-        title = title.strip('"\'')
-        
-        # Remove dates in various formats
-        title = re.sub(r'\s*\(\d{4}-\d{2}-\d{2}\)', '', title)
-        title = re.sub(r'\s*\d{1,2}\s+\w+\s+\d{4}$', '', title)
-        
-        # Remove air date indicators
-        title = re.sub(r'\s*\(aired.*?\)', '', title, flags=re.IGNORECASE)
-        
-        # Clean up extra spaces
-        title = ' '.join(title.split())
-        
-        return title.strip()
-        
-    def generate_csv(self, episodes: List[Dict[str, any]], output_file: Optional[str] = None) -> str:
-        """Generate CSV content from episodes"""
-        csv_lines = ["SeasonNumber,EpisodeNumber,EpisodeName,AbbvCombo"]
-        
+        title = title.strip()
+        # Strip a *matched* surrounding quote pair only (keeps "'Tis the Season").
+        if len(title) >= 2 and title[0] == title[-1] and title[0] in '"\'':
+            title = title[1:-1].strip()
+        # Remove ISO dates and clearly-delimited air dates.
+        title = re.sub(r'\s*\(\d{4}-\d{2}-\d{2}\)\s*$', '', title)
+        title = re.sub(
+            r'\s*\d{1,2}\s+(January|February|March|April|May|June|July|August|'
+            r'September|October|November|December)\s+\d{4}\s*$', '', title, flags=re.IGNORECASE)
+        title = re.sub(r'\s*\(aired.*?\)\s*$', '', title, flags=re.IGNORECASE)
+        return ' '.join(title.split())
+
+    def generate_csv(self, episodes: List[Dict], output_file: Optional[str] = None) -> str:
+        buf = StringIO()
+        writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL, lineterminator='\n')
+        writer.writerow(["SeasonNumber", "EpisodeNumber", "EpisodeName", "AbbvCombo"])
         for ep in episodes:
-            abbv = f"S{ep['season']:02d}E{ep['episode']:02d}"
-            # Escape commas in title
-            title = ep['title'].replace('"', '""')
-            if ',' in title:
-                title = f'"{title}"'
-            csv_lines.append(f"{ep['season']},{ep['episode']},{title},{abbv}")
-            
-        csv_content = '\n'.join(csv_lines)
-        
+            writer.writerow([ep['season'], ep['episode'], ep['title'],
+                             f"S{ep['season']:02d}E{ep['episode']:02d}"])
+        content = buf.getvalue().rstrip('\n')
         if output_file:
-            with open(output_file, 'w', encoding='utf-8') as f:
-                f.write(csv_content)
-                
-        return csv_content
+            with open(output_file, 'w', encoding='utf-8', newline='') as f:
+                f.write(content + '\n')
+        return content
+
 
 def main():
-    """Interactive mode for standalone use"""
     print("Episode List Formatter")
     print("=" * 50)
     print("\nPaste your episode list below. Enter a blank line when done:")
-    print("(Tip: You can paste multi-line content)")
-    
     lines = []
     while True:
         try:
@@ -185,44 +129,33 @@ def main():
             lines.append(line)
         except EOFError:
             break
-            
     if not lines:
         print("No input provided.")
         return
-        
-    text = '\n'.join(lines)
-    
-    # Ask for default season
+
     default_season = input("\nDefault season number (press Enter for 1): ").strip()
     default_season = int(default_season) if default_season.isdigit() else 1
-    
-    # Parse episodes
+
     formatter = EpisodeFormatter()
-    episodes = formatter.parse_episode_list(text, default_season)
-    
+    episodes = formatter.parse_episode_list('\n'.join(lines), default_season)
     if not episodes:
         print("\nNo episodes could be parsed. Please check the format.")
         return
-        
+
     print(f"\nParsed {len(episodes)} episodes:")
-    for ep in episodes[:5]:  # Show first 5
+    for ep in episodes[:5]:
         print(f"  S{ep['season']:02d}E{ep['episode']:02d} - {ep['title']}")
     if len(episodes) > 5:
         print(f"  ... and {len(episodes) - 5} more")
-        
-    # Ask to save
-    save = input("\nSave to CSV file? (y/n): ").strip().lower()
-    if save == 'y':
-        filename = input("Filename (default: episode_list.csv): ").strip()
-        filename = filename or "episode_list.csv"
-        
-        csv_content = formatter.generate_csv(episodes, filename)
+
+    if input("\nSave to CSV file? (y/n): ").strip().lower() == 'y':
+        filename = input("Filename (default: episode_list.csv): ").strip() or "episode_list.csv"
+        formatter.generate_csv(episodes, filename)
         print(f"\nSaved to {filename}")
     else:
-        # Print CSV to console
-        print("\nCSV Output:")
-        print("-" * 50)
+        print("\nCSV Output:\n" + "-" * 50)
         print(formatter.generate_csv(episodes))
+
 
 if __name__ == "__main__":
     main()

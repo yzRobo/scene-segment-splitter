@@ -6,7 +6,8 @@ sv-ttk>=2.6            # Sun Valley (Windows 11-style) ttk theme; GUI falls back
 #
 # External BINARIES are required at runtime (not pip-installable):
 #   ffmpeg, ffprobe, mkvmerge
-# Place them in the local ./bin folder (Windows .exe are bundled there) or install
-# them and add them to your PATH.
+# On Windows these are downloaded automatically into ./bin on first launch
+# (see bootstrap.py). On macOS/Linux install them via your package manager, e.g.
+#   brew install ffmpeg mkvtoolnix   /   sudo apt-get install ffmpeg mkvtoolnix
 #
 # Note: on Linux, tkinter is provided by the OS, e.g.  sudo apt-get install python3-tk

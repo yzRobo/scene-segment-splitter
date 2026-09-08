@@ -58,7 +58,8 @@ The result: `Show Name - S01E21 - Who, What, Where, Ed!.mkv` and
  `+ & and / _` title separators (CSV-guided so `Arnold & Lila` stays one title).
 - **Modern GUI** (Windows 11-style theme, light/dark) that is fully thread-safe.
 - **One shared engine** for the GUI and CLI; the CLI now honors config files.
-- **Cross-platform** binary lookup (bundled `bin/` **or** system `PATH`).
+- **Automatic binary setup** - missing `ffmpeg`/`ffprobe`/`mkvmerge` are
+  downloaded on first launch (Windows); lookup also checks the system `PATH`.
 
 ## Requirements
 
@@ -86,14 +87,18 @@ Then launch the GUI: double-click **`run_gui.bat`** (Windows) or run
 
 ## FFmpeg / mkvmerge binaries
 
-The three helper binaries are **not** committed to this repo. Provide them one of
-two ways:
+The three helper binaries (`ffmpeg`, `ffprobe`, `mkvmerge`) are **not** committed
+to this repo, but you do **not** need to fetch them by hand:
 
-- **Bundled:** put `ffmpeg`, `ffprobe`, `mkvmerge` (`.exe` on Windows) in `./bin`.
- On Windows, `run_processor.bat` can download them for you automatically.
-- **System PATH:** install them so they're on your `PATH` (e.g.
- `brew install ffmpeg mkvtoolnix` or `sudo apt-get install ffmpeg mkvtoolnix`).
- The app checks `bin/` first, then `PATH`.
+- **Automatic (Windows):** on first launch the app downloads them into `./bin`
+  for you (a small one-time setup window in the GUI, or console progress in the
+  CLI). Nothing to do. Pass `--no-download` to opt out.
+- **macOS/Linux:** install them with your package manager, e.g.
+  `brew install ffmpeg mkvtoolnix` or `sudo apt-get install ffmpeg mkvtoolnix`.
+- **Manual (any OS):** drop the binaries into `./bin` yourself.
+
+The app checks `bin/` first, then your system `PATH`, so a system-wide install
+also works.
 
 ## Usage (GUI)
 

@@ -29,16 +29,8 @@ if exist "requirements.txt" (
     "%PY%" -m pip install --quiet --disable-pip-version-check -r requirements.txt >nul 2>&1
 )
 
-REM Warn if the required media binaries are missing (bundled bin\ or on PATH).
-if not exist "bin\mkvmerge.exe" (
-    where mkvmerge >nul 2>&1
-    if errorlevel 1 (
-        echo.
-        echo WARNING: mkvmerge/ffmpeg not found in bin\ or on PATH.
-        echo Run run_processor.bat once to download them, or add them to PATH.
-        echo.
-    )
-)
+REM ffmpeg / ffprobe / mkvmerge are downloaded automatically on first launch
+REM (see bootstrap.py); no manual setup needed.
 
 echo Launching Scene Segment Splitter...
 "%PY%" scene_splitter.py

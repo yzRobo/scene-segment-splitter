@@ -6,8 +6,9 @@
 - **macOS/Linux:** `chmod +x run_gui.sh && ./run_gui.sh`
 
 Both launchers use the project virtual environment (`.venv`) if present, create
-the working folders, install the optional theme, and check for the required
-`ffmpeg`/`mkvmerge` binaries.
+the working folders, and install the optional theme. On first launch the app
+downloads the required `ffmpeg`/`ffprobe`/`mkvmerge` binaries automatically
+(Windows); on macOS/Linux install them via your package manager.
 
 ## Folders created on first run
 

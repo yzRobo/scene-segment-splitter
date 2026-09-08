@@ -22,11 +22,13 @@ if [ -f requirements.txt ]; then
     "$PY" -m pip install --quiet --disable-pip-version-check -r requirements.txt >/dev/null 2>&1 || true
 fi
 
-# Warn if required binaries are missing (bundled bin/ or on PATH).
+# On Windows the app auto-downloads ffmpeg/mkvmerge. On macOS/Linux, static
+# builds vary by distro, so install them via your package manager if missing.
 if [ ! -x "bin/mkvmerge" ] && ! command -v mkvmerge >/dev/null 2>&1; then
-    echo "WARNING: ffmpeg/ffprobe/mkvmerge not found in bin/ or on PATH."
-    echo "Install them via your package manager (e.g. 'brew install ffmpeg mkvtoolnix'"
-    echo "or 'sudo apt-get install ffmpeg mkvtoolnix'), then re-run."
+    echo "NOTE: ffmpeg/ffprobe/mkvmerge not found in bin/ or on PATH."
+    echo "Install them with your package manager, for example:"
+    echo "  macOS:  brew install ffmpeg mkvtoolnix"
+    echo "  Debian: sudo apt-get install ffmpeg mkvtoolnix"
 fi
 
 # tkinter check (commonly missing on Linux).

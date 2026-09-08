@@ -43,9 +43,88 @@ def _load_config_file(path):
         return json.load(f)
 
 
+def _ensure_binaries_cli():
+    """Download any missing helper binaries, printing progress to the console."""
+    try:
+        from bootstrap import ensure_binaries, missing_binaries
+    except Exception:
+        return
+    if missing_binaries():
+        ensure_binaries(progress=print)
+
+
+def _ensure_binaries_gui():
+    """Download missing binaries behind a small progress window before the main
+    GUI opens. Returns True if all tools are present afterward."""
+    try:
+        from bootstrap import ensure_binaries, missing_binaries
+    except Exception:
+        return True
+    if not missing_binaries():
+        return True
+
+    import queue
+    import threading
+    import tkinter as tk
+    from tkinter import ttk
+
+    root = tk.Tk()
+    root.title("Scene Segment Splitter - First-time setup")
+    root.geometry("560x200")
+    try:
+        import sv_ttk
+        sv_ttk.set_theme("dark")
+    except Exception:
+        pass
+    try:
+        root.attributes("-topmost", True)  # keep the setup dialog visible
+        root.lift()
+    except tk.TclError:
+        pass
+    ttk.Label(root, text="Downloading required tools (one-time setup)",
+              font=("Segoe UI", 12, "bold")).pack(padx=18, pady=(18, 6), anchor="w")
+    status = tk.StringVar(value="Starting...")
+    ttk.Label(root, textvariable=status, wraplength=520).pack(padx=18, anchor="w")
+    bar = ttk.Progressbar(root, mode="indeterminate")
+    bar.pack(fill="x", padx=18, pady=16)
+    bar.start(12)
+
+    q: "queue.Queue" = queue.Queue()
+    result = {"ok": None}
+
+    def work():
+        try:
+            result["ok"] = ensure_binaries(progress=q.put)
+        except Exception as e:
+            q.put(f"Setup error: {e}")
+            result["ok"] = False
+        q.put(None)
+
+    def pump():
+        try:
+            while True:
+                msg = q.get_nowait()
+                if msg is None:
+                    bar.stop()
+                    root.after(500, root.destroy)
+                    return
+                status.set(str(msg).strip()[:120])
+        except queue.Empty:
+            pass
+        root.after(100, pump)
+
+    threading.Thread(target=work, daemon=True).start()
+    root.after(100, pump)
+    root.mainloop()
+    return result["ok"]
+
+
 def run_cli(args):
     from datetime import datetime
     from process_videos import VideoProcessor, setup_logging
+
+    if not args.no_download:
+        _ensure_binaries_cli()
 
     config = _load_config_file(args.config)
 
@@ -88,7 +167,7 @@ def run_cli(args):
     print(f"Done - {datetime.now():%Y-%m-%d %H:%M:%S}")
 
 
-def run_gui():
+def run_gui(no_download=False):
     try:
         import tkinter  # noqa: F401
         from gui import main as gui_main
@@ -97,6 +176,8 @@ def run_gui():
         print("tkinter may be missing. On Ubuntu/Debian: sudo apt-get install python3-tk")
         print("You can still run headless: python scene_splitter.py --cli")
         sys.exit(1)
+    if not no_download:
+        _ensure_binaries_gui()
     gui_main()
 
 
@@ -117,12 +198,14 @@ def main():
                         help="Detection method name")
     parser.add_argument("--on-failure", type=str, dest="on_failure",
                         choices=["copy", "midpoint", "skip"], help="Behavior when no boundary is found")
+    parser.add_argument("--no-download", action="store_true", dest="no_download",
+                        help="Do not auto-download missing ffmpeg/mkvmerge binaries")
     args = parser.parse_args()
 
     if args.cli:
         run_cli(args)
     else:
-        run_gui()
+        run_gui(no_download=args.no_download)
 
 
 if __name__ == "__main__":

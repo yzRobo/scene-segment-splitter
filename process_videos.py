@@ -175,8 +175,9 @@ class VideoProcessor:
         if on_path:
             return on_path
         raise FileNotFoundError(
-            f"'{binary_name}' not found. Place {binary_name}{ext} in the 'bin' "
-            f"folder or install it and add it to your PATH."
+            f"'{binary_name}' not found. It is normally downloaded automatically "
+            f"on first launch; if that failed, place {binary_name}{ext} in the "
+            f"'bin' folder or install it and add it to your PATH."
         )
 
     # --------------------------------------------------------- episode list
